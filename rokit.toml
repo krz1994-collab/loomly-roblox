@@ -1,0 +1,11 @@
+# Rokit toolchain manifest. Run `rokit install` in this folder to fetch these
+# exact tool versions into your PATH. Rokit is the toolchain manager
+# (successor to Aftman/Foreman). Install Rokit itself once from:
+#   https://github.com/rojo-rbx/rokit  (see README.md step 1).
+#
+# Versions below were the current releases when this repo was scaffolded and are
+# confirmed to exist. If a version is ever pulled, run `rokit add rojo-rbx/rojo`
+# to re-pin the latest, then `rokit install`.
+
+[tools]
+rojo = "rojo-rbx/rojo@7.7.0"

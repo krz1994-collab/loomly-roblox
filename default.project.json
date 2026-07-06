@@ -1,0 +1,25 @@
+{
+  "name": "bloomly-roblox",
+  "globIgnorePaths": ["**/*.spec.luau"],
+  "tree": {
+    "$className": "DataModel",
+
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Bloomly": { "$path": "src/shared" }
+    },
+
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "BloomlyServer": { "$path": "src/server" }
+    },
+
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "BloomlyClient": { "$path": "src/client" }
+      }
+    }
+  }
+}
