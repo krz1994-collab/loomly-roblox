@@ -8,35 +8,32 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Plants = require(ReplicatedStorage.Bloomly.data.Plants)
 local Mutations = require(ReplicatedStorage.Bloomly.data.Mutations)
 local Config = require(ReplicatedStorage.Bloomly.data.Config)
+local Rules = require(ReplicatedStorage.Bloomly.Rules) -- the pure, VPS-tested loop core
 local PlayerData = require(script.Parent.PlayerData)
 
 type PlayerState = PlayerData.PlayerState
 
 local Farm = {}
 
--- One RNG for the whole server. Roblox seeds Random.new() from a secure source.
+-- One RNG for the whole server. Roblox seeds Random.new() from a secure source. We wrap it as a
+-- plain `() -> number` so we can hand it to the pure Rules core (tests inject a fake instead).
 local rng = Random.new()
+local function rand(): number
+	return rng:NextNumber()
+end
 
--- Mutations sorted rarest-first (highest rank first) so "highest-rank wins": we check the rarest
--- mutation first and return the first one that hits.
-local ladder = table.clone(Mutations.list)
-table.sort(ladder, function(a, b)
-	return a.rank > b.rank
-end)
+-- Mutations sorted rarest-first (built once by the pure core, reused every roll).
+local ladder = Rules.buildLadder(Mutations.list)
 
 -- ===================================================================================
 -- THE MUTATION ROLL -- SERVER ONLY. This is the single most exploit-sensitive line in the loop.
 -- If the client rolled this, every harvest would be a celestial. The client is TOLD the result;
--- it never decides it. `chanceMult` is a hook for fertilizer/weather/biome bias (spec §2.2), 1.0 here.
+-- it never decides it. The algorithm lives in Rules.rollMutation (pure + VPS-tested for both the
+-- fixed-outcome case and the overall distribution); this wrapper just injects the server RNG.
+-- `chanceMult` is a hook for fertilizer/weather/biome bias (spec §2.2), 1.0 here.
 -- ===================================================================================
 function Farm.rollMutation(chanceMult: number?): string
-	local mult = chanceMult or 1.0
-	for _, m in ladder do -- rarest -> commonest
-		if rng:NextNumber() < m.chance * mult then
-			return m.id -- highest-rank hit wins; stop
-		end
-	end
-	return Mutations.NORMAL_ID -- the common case: a plain crop
+	return Rules.rollMutation(ladder, rand, Mutations.NORMAL_ID, chanceMult)
 end
 
 -- Elapsed-time clock. os.clock() is a high-precision monotonic timer -- correct for measuring
@@ -47,7 +44,8 @@ local function now(): number
 end
 
 local function isReady(plot: PlayerData.Plot): boolean
-	return plot.seedId ~= nil and plot.readyAt ~= nil and now() >= (plot.readyAt :: number)
+	-- readiness math lives in Rules.isReady (pure + time-injected so tests are deterministic)
+	return plot.seedId ~= nil and Rules.isReady(now(), plot.readyAt)
 end
 
 local function invKey(plantId: string, mutationId: string): string
@@ -76,7 +74,7 @@ function Farm.plant(state: PlayerState, seedId: string, plotIndex: number, owned
 	-- TODO(economy): charge plant.cost as a seed sink here once coins are a real constraint.
 	-- The slice lets you plant free so the loop is easy to exercise.
 	plot.seedId = seedId
-	plot.readyAt = now() + plant.growMs / 1000 -- growMs is milliseconds; grow timer is server-owned
+	plot.readyAt = Rules.readyAt(now(), plant.growMs) -- grow timer is server-owned (pure math in Rules)
 	return true, "ok"
 end
 
@@ -121,7 +119,7 @@ function Farm.sellAll(state: PlayerState): (boolean, number)
 			local mutationId = if sep then string.sub(key, sep + 1) else Mutations.NORMAL_ID
 			local plant = Plants.get(plantId)
 			if plant then
-				local unit = math.floor(plant.sell * Mutations.multOf(mutationId))
+				local unit = Rules.sellPrice(plant.sell, Mutations.multOf(mutationId)) -- NPC floor
 				gained += unit * qty
 			end
 		end
@@ -177,7 +175,7 @@ function Farm.buildView(state: PlayerState, ownedPlots: number)
 			local plantId = if sep then string.sub(key, 1, sep - 1) else key
 			local mutationId = if sep then string.sub(key, sep + 1) else Mutations.NORMAL_ID
 			local plant = Plants.get(plantId)
-			local unit = if plant then math.floor(plant.sell * Mutations.multOf(mutationId)) else 0
+			local unit = if plant then Rules.sellPrice(plant.sell, Mutations.multOf(mutationId)) else 0
 			table.insert(inventory, {
 				plantId = plantId,
 				mutationId = mutationId,

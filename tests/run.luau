@@ -15,6 +15,7 @@
 local Plants = require("../src/shared/data/Plants")
 local Mutations = require("../src/shared/data/Mutations")
 local Config = require("../src/shared/data/Config")
+local Rules = require("../src/shared/Rules")
 
 local passed, failed = 0, 0
 local function check(name: string, cond: boolean)
@@ -107,6 +108,58 @@ do
 	local normalFrac = pAny
 	check("most harvests are normal (>80%)", normalFrac > 0.80)
 	print(string.format("  info: effective mutation rate = %.2f%% (normal %.2f%%)", (1 - normalFrac) * 100, normalFrac * 100))
+end
+
+-- ---- Rules: grow timing (pure, time injected -> deterministic) ----
+eq("readyAt(100, 20000ms) = 120s", Rules.readyAt(100, 20000), 120)
+check("not ready 1s early", not Rules.isReady(119, 120))
+check("ready exactly on time", Rules.isReady(120, 120))
+check("ready after time", Rules.isReady(121, 120))
+check("empty plot (nil readyAt) never ready", not Rules.isReady(50, nil))
+
+-- ---- Rules: price floor (pure) ----
+eq("sellPrice floors 9x2.5 -> 22", Rules.sellPrice(9, 2.5), 22)
+eq("sellPrice 200x2.5 -> 500", Rules.sellPrice(200, 2.5), 500)
+eq("sellPrice 1400x20 -> 28000", Rules.sellPrice(1400, 20), 28000)
+
+-- ---- Rules: mutation roll, FIXED outcomes (a known rand -> a known tier) ----
+local ladder = Rules.buildLadder(Mutations.list)
+local function constRand(v: number): () -> number
+	return function()
+		return v
+	end
+end
+eq("rand 0.0001 -> celestial (rarest hit)", Rules.rollMutation(ladder, constRand(0.0001), "normal"), "celestial")
+eq("rand 0.003 -> rainbow", Rules.rollMutation(ladder, constRand(0.003), "normal"), "rainbow")
+eq("rand 0.03 -> giant", Rules.rollMutation(ladder, constRand(0.03), "normal"), "giant")
+eq("rand 0.9 -> normal (nothing hits)", Rules.rollMutation(ladder, constRand(0.9), "normal"), "normal")
+-- chanceMult scales every chance: 0.007 misses rainbow(0.004) normally, hits it at x2 (0.008)
+eq("rand 0.007, mult 1 -> frosted", Rules.rollMutation(ladder, constRand(0.007), "normal", 1), "frosted")
+eq("rand 0.007, mult 2 -> rainbow", Rules.rollMutation(ladder, constRand(0.007), "normal", 2), "rainbow")
+
+-- ---- Rules: mutation roll, DISTRIBUTION over 200k draws matches the ladder ----
+do
+	pcall(function()
+		math.randomseed(1337)
+	end) -- reproducible if supported; wide tolerance makes it robust either way
+	local mrand = function()
+		return math.random()
+	end
+	local N = 200000
+	local counts: { [string]: number } = {}
+	for _ = 1, N do
+		local id = Rules.rollMutation(ladder, mrand, "normal")
+		counts[id] = (counts[id] or 0) + 1
+	end
+	local normal = counts["normal"] or 0
+	local mutated = N - normal
+	local rate = mutated / N
+	-- expected ~15.13%; N=200k => this is far tighter than +/-1% in practice
+	check(string.format("empirical mutation rate ~15%% (got %.2f%%)", rate * 100), rate > 0.14 and rate < 0.163)
+	check("every tier actually appears", (counts["celestial"] or 0) > 0 and (counts["wet"] or 0) > 0)
+	check("normal is the most common outcome", normal > mutated)
+	print(string.format("  info: 200k rolls -> %.2f%% mutated; celestial x%d, rainbow x%d, wet x%d",
+		rate * 100, counts["celestial"] or 0, counts["rainbow"] or 0, counts["wet"] or 0))
 end
 
 print(string.format("\n%d passed, %d failed", passed, failed))
