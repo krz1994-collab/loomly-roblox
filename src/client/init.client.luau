@@ -98,6 +98,7 @@ local builtPlots = false
 local COL_NORMAL = Color3.fromRGB(70, 110, 60)
 local COL_SELECTED = Color3.fromRGB(120, 190, 90)
 local COL_LOCKED = Color3.fromRGB(70, 70, 70)
+local COL_POOR = Color3.fromRGB(95, 72, 60)
 local COL_EMPTY = Color3.fromRGB(60, 70, 55)
 local COL_GROWING = Color3.fromRGB(90, 100, 70)
 local COL_READY = Color3.fromRGB(120, 190, 90)
@@ -164,8 +165,8 @@ end
 local function render(view: any)
 	latestView = view
 	header.Text = string.format(
-		"Bloomly   coins: %d   lifetime earned: %d   harvests: %d",
-		view.coins, view.lifetimeEarned, view.harvests
+		"Bloomly   coins: %d   Lv %d (%d xp)   codex: %d   harvests: %d",
+		view.coins, view.level, view.xp, view.codexCount, view.harvests
 	)
 
 	if not builtSeeds then
@@ -183,9 +184,12 @@ local function render(view: any)
 			if not s.unlocked then
 				btn.BackgroundColor3 = COL_LOCKED
 				btn.Text = s.emoji .. " " .. s.id .. "\nLOCKED"
+			elseif not s.affordable then
+				btn.BackgroundColor3 = COL_POOR -- unlocked but you can't afford the seed cost
+				btn.Text = s.emoji .. " " .. s.id .. "\nneed " .. s.cost .. "c"
 			else
 				btn.BackgroundColor3 = if selectedSeedId == s.id then COL_SELECTED else COL_NORMAL
-				btn.Text = s.emoji .. " " .. s.id .. "\n" .. s.growSeconds .. "s / " .. s.sell .. "c"
+				btn.Text = s.emoji .. " " .. s.id .. "\nbuy " .. s.cost .. "c · " .. s.growSeconds .. "s"
 			end
 		end
 	end

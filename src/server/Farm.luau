@@ -71,8 +71,12 @@ function Farm.plant(state: PlayerState, seedId: string, plotIndex: number, owned
 	if not Plants.isUnlocked(plant, state, ownedPlots) then
 		return false, "locked"
 	end
-	-- TODO(economy): charge plant.cost as a seed sink here once coins are a real constraint.
-	-- The slice lets you plant free so the loop is easy to exercise.
+	-- SEED COST (coin sink). The server charges plant.cost and refuses if the player can't afford it.
+	-- The client never touches coins -- it only asks to plant. This is what makes the loop an economy.
+	if state.coins < plant.cost then
+		return false, "too_poor"
+	end
+	state.coins -= plant.cost
 	plot.seedId = seedId
 	plot.readyAt = Rules.readyAt(now(), plant.growMs) -- grow timer is server-owned (pure math in Rules)
 	return true, "ok"
@@ -98,6 +102,11 @@ function Farm.harvest(state: PlayerState, plotIndex: number): (boolean, string, 
 	local key = invKey(seedId, mutationId)
 	state.inventory[key] = (state.inventory[key] or 0) + 1
 	state.harvests += 1
+	-- progression (server-owned): XP drives level; codex records each discovered plant x mutation combo
+	local plant = Plants.get(seedId)
+	local mut = Mutations.get(mutationId)
+	state.xp += Rules.xpForHarvest(if plant then plant.tier else 1, if mut then mut.rank else 0)
+	state.codex[key] = true
 	-- clear the plot
 	plot.seedId = nil
 	plot.readyAt = nil
@@ -163,8 +172,10 @@ function Farm.buildView(state: PlayerState, ownedPlots: number)
 			id = plant.id,
 			emoji = plant.emoji,
 			sell = plant.sell,
+			cost = plant.cost,
 			growSeconds = math.floor(plant.growMs / 1000),
 			unlocked = Plants.isUnlocked(plant, state, ownedPlots),
+			affordable = state.coins >= plant.cost, -- client greys out what you can't afford
 		})
 	end
 
@@ -186,10 +197,18 @@ function Farm.buildView(state: PlayerState, ownedPlots: number)
 		end
 	end
 
+	local codexCount = 0
+	for _ in state.codex do
+		codexCount += 1
+	end
+
 	return {
 		coins = state.coins,
 		lifetimeEarned = state.lifetimeEarned,
 		harvests = state.harvests,
+		xp = state.xp,
+		level = Rules.levelForXp(state.xp),
+		codexCount = codexCount,
 		plots = plots,
 		seeds = seeds,
 		inventory = inventory,

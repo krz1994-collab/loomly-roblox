@@ -58,4 +58,16 @@ function Rules.sellPrice(baseSell: number, mult: number): number
 	return math.floor(baseSell * mult)
 end
 
+-- XP granted for one harvest. Higher-tier crops and rarer mutations are worth more.
+-- Pure integer math; mutationRank is 0 for a plain crop, 1..6 for a mutation.
+function Rules.xpForHarvest(tier: number, mutationRank: number): number
+	return tier * 3 + mutationRank * 5
+end
+
+-- Level from total XP. Ported from the web `levelOf`: floor(sqrt(xp/50)) + 1.
+-- Level 1 at 0 XP, level 2 at 50, level 3 at 200, level 4 at 450, ... (each level costs more).
+function Rules.levelForXp(xp: number): number
+	return math.floor(math.sqrt(xp / 50)) + 1
+end
+
 return Rules

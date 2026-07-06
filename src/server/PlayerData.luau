@@ -22,6 +22,8 @@ export type PlayerState = {
 	coins: number,
 	lifetimeEarned: number,
 	harvests: number,
+	xp: number, -- earned on every harvest; drives level (see Rules.levelForXp)
+	codex: { [string]: boolean }, -- discovered "plantId|mutationId" combos -> true (collection)
 	plots: { Plot }, -- 1..Config.PLOT_COUNT
 	inventory: { [string]: number }, -- key = plantId|mutationId  ->  quantity
 }
@@ -41,6 +43,8 @@ local function makeDefault(): PlayerState
 		coins = Config.START_COINS,
 		lifetimeEarned = 0,
 		harvests = 0,
+		xp = 0,
+		codex = {},
 		plots = plots,
 		inventory = {},
 	}

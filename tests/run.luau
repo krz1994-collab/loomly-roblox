@@ -162,6 +162,31 @@ do
 		rate * 100, counts["celestial"] or 0, counts["rainbow"] or 0, counts["wet"] or 0))
 end
 
+-- ---- Rules: progression math (XP per harvest + level curve, both pure) ----
+eq("radish(t1) normal harvest = 3 xp", Rules.xpForHarvest(1, 0), 3)
+eq("starbloom(t6) normal harvest = 18 xp", Rules.xpForHarvest(6, 0), 18)
+eq("radish(t1) rainbow(r5) harvest = 28 xp", Rules.xpForHarvest(1, 5), 28)
+eq("pumpkin(t4) golden(r3) harvest = 27 xp", Rules.xpForHarvest(4, 3), 27)
+
+eq("level at 0 xp = 1", Rules.levelForXp(0), 1)
+eq("level at 49 xp = 1", Rules.levelForXp(49), 1)
+eq("level at 50 xp = 2", Rules.levelForXp(50), 2)
+eq("level at 199 xp = 2", Rules.levelForXp(199), 2)
+eq("level at 200 xp = 3", Rules.levelForXp(200), 3)
+eq("level at 450 xp = 4", Rules.levelForXp(450), 4)
+do
+	local monotonic = true
+	local prev = 0
+	for xp = 0, 5000, 25 do
+		local lvl = Rules.levelForXp(xp)
+		if lvl < prev then
+			monotonic = false
+		end
+		prev = lvl
+	end
+	check("level never decreases as xp grows", monotonic)
+end
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 if failed > 0 then
 	error("TESTS FAILED", 0)
