@@ -118,13 +118,27 @@ task.spawn(function()
 	end
 end)
 
--- ---- shutdown -------------------------------------------------------------------
--- TODO(DataStore §5.2): on BindToClose, flush every player's save through the session-locked
--- writer before the server dies. In-memory slice has nothing to flush, but the seam is here.
-game:BindToClose(function()
-	for _, player in Players:GetPlayers() do
-		PlayerData.save(player)
+-- ---- save cadence ---------------------------------------------------------------
+-- Persist every online player every SAVE_CADENCE_SECONDS. NEVER save per-action: at 50 players
+-- per-action writes would blow the DataStore request budget. Cadence + on-leave + on-shutdown is
+-- the spec §5.2 discipline. Each save is a lock-guarded UpdateAsync with retries (in PlayerData).
+task.spawn(function()
+	while true do
+		task.wait(Config.SAVE_CADENCE_SECONDS)
+		for _, player in Players:GetPlayers() do
+			task.spawn(PlayerData.save, player) -- spawn so one slow write doesn't stall the others
+		end
 	end
 end)
 
-print("[Bloomly] server ready -- authoritative loop online (" .. Config.PLOT_COUNT .. " plots/player)")
+-- ---- shutdown -------------------------------------------------------------------
+-- Flush every player's save (and release their lock) before the server dies. save() blocks on its
+-- retry writer, so BindToClose holds the server open until writes finish (Roblox allows ~30s).
+game:BindToClose(function()
+	for _, player in Players:GetPlayers() do
+		task.spawn(PlayerData.save, player, true) -- release lock so a rejoin on a new server isn't blocked
+	end
+	task.wait(3) -- give the spawned writes a moment to complete before the process exits
+end)
+
+print("[Bloomly] server ready -- persistence online, " .. Config.PLOT_COUNT .. " plots/player, cap " .. Config.MAX_PLAYERS)

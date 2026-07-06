@@ -5,17 +5,32 @@
 -- receives a read-only *view* of it (Farm.buildView) and can only change it by sending an intent
 -- that the server validates.
 --
--- PERSISTENCE SEAM (spec §5.2): the slice keeps state in a plain in-memory table that is lost on
--- server shutdown. The load() and save() functions below are the exact seam where a
--- session-locked DataStore drops in later. Build against these two functions and the rest of the
--- game never needs to know whether the bytes come from RAM or DataStore. See the TODOs.
+-- PERSISTENCE (spec §5.2): state lives in an in-memory cache per session and is written to
+-- DataStore on a cadence + on leave + on shutdown -- NEVER per action. The pure decisions
+-- (shape/migration/validation) live in SaveSchema (VPS-tested); this module is the thin Roblox
+-- shell that does the actual DataStoreService calls + the session lock.
+--
+-- SESSION LOCK (v1, in-value): the save carries { lockedBy=serverId, lockedAt=epoch }. On load we
+-- take the lock inside the same UpdateAsync that reads the save. On save we refuse to write if
+-- another LIVE server holds the lock -- so two servers can never clobber one player's save. A lock
+-- older than Config.LOCK_STALE_SECONDS is treated as a dead server and stolen. (MemoryStore upgrade
+-- path noted but unneeded at this scale.)
+--
+-- SAFETY RULE: if a load FAILS after retries, the player plays on a fresh default but we set a
+-- no-save flag so we NEVER overwrite their real (unreadable-right-now) save with defaults.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local DataStoreService = game:GetService("DataStoreService")
 local Config = require(ReplicatedStorage.Bloomly.data.Config)
+local SaveSchema = require(ReplicatedStorage.Bloomly.SaveSchema)
+
+local dataStore = DataStoreService:GetDataStore(Config.DATASTORE_NAME)
+-- Unique id for THIS server instance. Empty in Studio solo -> stable fallback so the lock still works.
+local SERVER_ID = if game.JobId ~= "" then game.JobId else "studio-solo"
 
 export type Plot = {
 	seedId: string?, -- nil = empty plot
-	readyAt: number?, -- os.clock() timestamp when the crop finishes growing; nil = empty
+	readyAt: number?, -- os.time() epoch when the crop finishes growing; nil = empty. Persists across sessions.
 }
 
 export type PlayerState = {
@@ -50,22 +65,66 @@ local function makeDefault(): PlayerState
 	}
 end
 
--- Called once when a player joins. Returns their authoritative state.
+-- userId -> true when a load FAILED. save() checks this and refuses to write, so a transient
+-- DataStore outage never overwrites a real save with the fresh default the player is playing on.
+local noSave: { [number]: boolean } = {}
+
+local function keyFor(userId: number): string
+	return "u_" .. userId
+end
+
+-- Retry an async DataStore call with exponential backoff. Returns (ok, resultOrError).
+local function retry<T>(fn: () -> T, tries: number?): (boolean, any)
+	local n = tries or 4
+	local ok, res
+	for i = 1, n do
+		ok, res = pcall(fn)
+		if ok then
+			return true, res
+		end
+		task.wait(0.5 * i) -- 0.5s, 1s, 1.5s ...
+	end
+	return false, res
+end
+
+-- Is a stored lock owned by a DIFFERENT, still-live server? (fresh lock from another JobId)
+local function foreignLiveLock(stored: any): boolean
+	return type(stored) == "table"
+		and type(stored.lockedBy) == "string"
+		and stored.lockedBy ~= SERVER_ID
+		and (os.time() - (tonumber(stored.lockedAt) or 0)) < Config.LOCK_STALE_SECONDS
+end
+
+-- Called once when a player joins. Reads their save + takes the session lock, atomically.
 function PlayerData.load(player: Player): PlayerState
-	-- TODO(DataStore §5.2): session-locked load goes HERE.
-	--   1. Acquire a session lock for this userId (MemoryStore or a DataStore "lock" key) so two
-	--      server instances can never own the same save at once -- the "owner"-tag problem already
-	--      solved on the web version.
-	--   2. GetAsync the player's save with retries; if found, decode into a PlayerState.
-	--   3. Fall back to makeDefault() only when there is genuinely no save.
-	-- For the slice: in-memory only. New every server start.
 	local existing = store[player.UserId]
 	if existing then
 		return existing
 	end
-	local fresh = makeDefault()
-	store[player.UserId] = fresh
-	return fresh
+	local template = makeDefault()
+
+	-- Take the lock inside the read: UpdateAsync gives us read-modify-write atomicity.
+	local ok, saved = retry(function()
+		return dataStore:UpdateAsync(keyFor(player.UserId), function(old)
+			old = old or {}
+			old.lockedBy = SERVER_ID
+			old.lockedAt = os.time()
+			return old
+		end)
+	end)
+
+	local state: PlayerState
+	if ok then
+		-- `saved` carries the game fields (if any) + our lock fields; deserialize ignores the lock fields.
+		state = SaveSchema.deserialize(saved, template)
+	else
+		warn("[Bloomly] load FAILED for userId " .. player.UserId .. " (" .. tostring(saved) .. ") -> default, no-save")
+		state = template
+		noSave[player.UserId] = true -- never clobber the unreadable real save
+	end
+
+	store[player.UserId] = state
+	return state
 end
 
 -- Read the already-loaded state (assumes load() ran on join).
@@ -73,23 +132,37 @@ function PlayerData.get(player: Player): PlayerState?
 	return store[player.UserId]
 end
 
--- Called on a cadence and when the player leaves.
-function PlayerData.save(player: Player): ()
+-- Write the player's state to DataStore. Called on cadence + on leave -- NEVER per action.
+-- Refuses to write if another live server stole the lock, or if this session is flagged no-save.
+-- `release` = clear the lock (used on final leave) so a rejoin isn't blocked.
+function PlayerData.save(player: Player, release: boolean?): ()
 	local state = store[player.UserId]
-	if not state then
+	if not state or noSave[player.UserId] then
 		return
 	end
-	-- TODO(DataStore §5.2): session-locked save goes HERE.
-	--   1. UpdateAsync (not SetAsync) the player's key with retries, writing `state`.
-	--   2. NEVER write per-action; write on this cadence + on PlayerRemoving + on BindToClose.
-	--   3. On the final leave, release the session lock acquired in load().
-	-- For the slice: no-op (state already lives in `store`).
+	local payload = SaveSchema.serialize(state)
+	retry(function()
+		return dataStore:UpdateAsync(keyFor(player.UserId), function(old)
+			if foreignLiveLock(old) then
+				return nil -- another live server owns this save now: cancel the write, don't clobber
+			end
+			if release then
+				payload.lockedBy = nil
+				payload.lockedAt = nil
+			else
+				payload.lockedBy = SERVER_ID
+				payload.lockedAt = os.time()
+			end
+			return payload
+		end)
+	end)
 end
 
--- Called on PlayerRemoving to release memory (and, later, the session lock).
+-- Called on PlayerRemoving: final save + release lock + free memory.
 function PlayerData.unload(player: Player): ()
-	PlayerData.save(player)
+	PlayerData.save(player, true) -- release the lock on the way out
 	store[player.UserId] = nil
+	noSave[player.UserId] = nil
 end
 
 return PlayerData

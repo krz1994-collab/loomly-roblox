@@ -16,6 +16,7 @@ local Plants = require("../src/shared/data/Plants")
 local Mutations = require("../src/shared/data/Mutations")
 local Config = require("../src/shared/data/Config")
 local Rules = require("../src/shared/Rules")
+local SaveSchema = require("../src/shared/SaveSchema")
 
 local passed, failed = 0, 0
 local function check(name: string, cond: boolean)
@@ -185,6 +186,81 @@ do
 		prev = lvl
 	end
 	check("level never decreases as xp grows", monotonic)
+end
+
+-- ---- SaveSchema: persistence shape (pure; the safety net for DataStore) ----
+local function deepEqual(a: any, b: any): boolean
+	if type(a) ~= type(b) then
+		return false
+	end
+	if type(a) ~= "table" then
+		return a == b
+	end
+	for k, v in a do
+		if not deepEqual(v, b[k]) then
+			return false
+		end
+	end
+	for k in b do
+		if a[k] == nil then
+			return false
+		end
+	end
+	return true
+end
+local function tmpl(): any
+	local plots = {}
+	for _ = 1, 6 do
+		table.insert(plots, { seedId = nil, readyAt = nil })
+	end
+	return { coins = 20, lifetimeEarned = 0, harvests = 0, xp = 0, codex = {}, inventory = {}, plots = plots }
+end
+do
+	local st: any = {
+		coins = 512,
+		lifetimeEarned = 999,
+		harvests = 7,
+		xp = 250,
+		codex = { ["radish|golden"] = true, ["sunflower|normal"] = true },
+		inventory = { ["radish|normal"] = 3, ["pumpkin|giant"] = 1 },
+		plots = {
+			{ seedId = "radish", readyAt = 1700000000 },
+			{ seedId = nil, readyAt = nil },
+			{ seedId = nil, readyAt = nil },
+			{ seedId = nil, readyAt = nil },
+			{ seedId = nil, readyAt = nil },
+			{ seedId = nil, readyAt = nil },
+		},
+	}
+	-- round-trip is lossless (this is the property that says persistence doesn't corrupt a garden)
+	check("SaveSchema round-trip preserves full state", deepEqual(SaveSchema.deserialize(SaveSchema.serialize(st), tmpl()), st))
+	-- serialize stamps the version
+	eq("serialize stamps version", (SaveSchema.serialize(st) :: any).v, SaveSchema.VERSION)
+end
+-- brand-new player (nil save) => fresh template
+check("nil save => fresh default", deepEqual(SaveSchema.deserialize(nil, tmpl()), tmpl()))
+-- a save missing fields fills them from the template (new features never wipe old saves)
+do
+	local out = SaveSchema.deserialize({ coins = 100 }, tmpl())
+	eq("missing-field save keeps its coins", out.coins, 100)
+	eq("missing-field save defaults lifetimeEarned", out.lifetimeEarned, 0)
+	eq("missing-field save gets full plot count", #out.plots, 6)
+end
+-- validation clamps impossible / wrong-typed values instead of trusting them
+do
+	local out = SaveSchema.deserialize({ coins = -5, xp = "bad", plots = "notarray", inventory = { good = 3, bad = -1, junk = "x" } }, tmpl())
+	eq("negative coins clamped to default", out.coins, 20)
+	eq("non-number xp clamped to default", out.xp, 0)
+	eq("garbage plots -> template count of empty plots", #out.plots, 6)
+	eq("only valid inventory qty kept", out.inventory.good, 3)
+	check("bad inventory entries dropped", out.inventory.bad == nil and out.inventory.junk == nil)
+end
+-- fewer stored plots than the template => normalized up, planted ones preserved
+do
+	local out = SaveSchema.deserialize({ plots = { { seedId = "radish", readyAt = 42 } } }, tmpl())
+	eq("plots normalized to template count", #out.plots, 6)
+	eq("planted plot preserved", out.plots[1].seedId, "radish")
+	check("extra plots are empty", out.plots[6].seedId == nil)
 end
 
 print(string.format("\n%d passed, %d failed", passed, failed))

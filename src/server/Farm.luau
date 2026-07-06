@@ -36,11 +36,13 @@ function Farm.rollMutation(chanceMult: number?): string
 	return Rules.rollMutation(ladder, rand, Mutations.NORMAL_ID, chanceMult)
 end
 
--- Elapsed-time clock. os.clock() is a high-precision monotonic timer -- correct for measuring
--- grow durations within a single server run. (A DataStore build would persist os.time() instead so
--- growth continues across sessions; noted at the seam in PlayerData.)
+-- Grow clock. os.time() = Unix epoch seconds (server wall-clock, consistent across servers and
+-- restarts). We store plot.readyAt in this space so grow timers SURVIVE saves AND crops keep
+-- growing while a player is offline (they come back to ready crops -- a retention win). 1-second
+-- resolution is plenty for 20s..45min grow times. (The slice used os.clock() which resets each run
+-- and would make every saved timer wrong -- fixed here before persistence ships.)
 local function now(): number
-	return os.clock()
+	return os.time()
 end
 
 local function isReady(plot: PlayerData.Plot): boolean
