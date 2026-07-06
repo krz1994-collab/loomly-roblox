@@ -20,7 +20,9 @@ local RunService = game:GetService("RunService")
 
 local Bloomly = script.Parent -- the ReplicatedStorage.Bloomly folder
 
-local EVENT_NAMES = { "Plant", "Harvest", "SellAll", "StateUpdate" }
+-- SelectSeed (client->server): "the seed I want the next Plant prompt to plant". Purely a preference;
+-- the actual planting is a server-side ProximityPrompt handler (see BloomlyServer).
+local EVENT_NAMES = { "Plant", "Harvest", "SellAll", "StateUpdate", "SelectSeed" }
 local FUNCTION_NAMES = { "GetState" }
 
 -- The server (and only the server) creates the folder + instances. It is safe to run this on
@@ -57,6 +59,7 @@ local Remotes = {
 	Harvest = folder:WaitForChild("Harvest") :: RemoteEvent,
 	SellAll = folder:WaitForChild("SellAll") :: RemoteEvent,
 	StateUpdate = folder:WaitForChild("StateUpdate") :: RemoteEvent,
+	SelectSeed = folder:WaitForChild("SelectSeed") :: RemoteEvent,
 	GetState = folder:WaitForChild("GetState") :: RemoteFunction,
 }
 

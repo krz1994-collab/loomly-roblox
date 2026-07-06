@@ -1,12 +1,10 @@
 --!strict
--- BloomlyClient: the whole client for the slice. It does exactly two things:
---   1. RENDER the authoritative state the server sends (StateUpdate / GetState).
---   2. SEND intents when the player taps (Plant / Harvest / SellAll).
---
--- It holds NO authoritative state. It never decides a mutation, a price, a coin balance, or
--- whether a crop is ready -- it only shows what the server said and asks the server to act.
--- If you deleted this file and sent the same remotes from the command bar, the game would behave
--- identically: the client is a window, not a source of truth.
+-- BloomlyClient: the HUD for the 3D world. It does NOT block the screen or drive gameplay logic --
+-- you walk your avatar to your farm and press the ProximityPrompt (E) on a pad to plant/harvest, and
+-- on the Market to sell. All of that is server-authoritative. This client only:
+--   1. renders a small HUD (coins / level / xp / codex / inventory) from StateUpdate, and
+--   2. lets you PICK which seed the next Plant prompt uses (fires SelectSeed).
+-- It holds no authoritative state.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -16,95 +14,95 @@ local Remotes = require(ReplicatedStorage.Bloomly.Remotes)
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- ---- static UI shell ------------------------------------------------------------
 local gui = Instance.new("ScreenGui")
-gui.Name = "BloomlyUI"
+gui.Name = "BloomlyHUD"
 gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
 gui.Parent = playerGui
 
-local root = Instance.new("Frame")
-root.Size = UDim2.fromScale(1, 1)
-root.BackgroundColor3 = Color3.fromRGB(24, 30, 22)
-root.BorderSizePixel = 0
-root.Parent = gui
+-- ---- top-left stats panel ----
+local hud = Instance.new("Frame")
+hud.Size = UDim2.new(0, 360, 0, 74)
+hud.Position = UDim2.new(0, 12, 0, 12)
+hud.BackgroundColor3 = Color3.fromRGB(24, 30, 22)
+hud.BackgroundTransparency = 0.25
+hud.BorderSizePixel = 0
+hud.Parent = gui
+local hudCorner = Instance.new("UICorner")
+hudCorner.CornerRadius = UDim.new(0, 8)
+hudCorner.Parent = hud
 
-local pad = Instance.new("UIPadding")
-pad.PaddingTop = UDim.new(0, 16)
-pad.PaddingLeft = UDim.new(0, 16)
-pad.PaddingRight = UDim.new(0, 16)
-pad.Parent = root
+local stats = Instance.new("TextLabel")
+stats.Size = UDim2.new(1, -12, 0, 26)
+stats.Position = UDim2.new(0, 8, 0, 4)
+stats.BackgroundTransparency = 1
+stats.TextXAlignment = Enum.TextXAlignment.Left
+stats.TextColor3 = Color3.fromRGB(240, 245, 230)
+stats.Font = Enum.Font.GothamBold
+stats.TextSize = 16
+stats.Text = "Bloomly — connecting..."
+stats.Parent = hud
 
-local col = Instance.new("UIListLayout")
-col.FillDirection = Enum.FillDirection.Vertical
-col.Padding = UDim.new(0, 10)
-col.SortOrder = Enum.SortOrder.LayoutOrder
-col.Parent = root
+local invLabel = Instance.new("TextLabel")
+invLabel.Size = UDim2.new(1, -110, 0, 24)
+invLabel.Position = UDim2.new(0, 8, 0, 40)
+invLabel.BackgroundTransparency = 1
+invLabel.TextXAlignment = Enum.TextXAlignment.Left
+invLabel.TextColor3 = Color3.fromRGB(210, 220, 200)
+invLabel.Font = Enum.Font.Gotham
+invLabel.TextSize = 14
+invLabel.Text = "🎒 empty"
+invLabel.Parent = hud
 
-local function label(text: string, order: number, height: number, size: number): TextLabel
-	local l = Instance.new("TextLabel")
-	l.Size = UDim2.new(1, 0, 0, height)
-	l.BackgroundTransparency = 1
-	l.TextXAlignment = Enum.TextXAlignment.Left
-	l.TextColor3 = Color3.fromRGB(235, 240, 225)
-	l.Font = Enum.Font.GothamMedium
-	l.TextSize = size
-	l.Text = text
-	l.LayoutOrder = order
-	l.Parent = root
-	return l
-end
+local sellBtn = Instance.new("TextButton")
+sellBtn.Size = UDim2.new(0, 92, 0, 26)
+sellBtn.Position = UDim2.new(1, -100, 0, 40)
+sellBtn.BackgroundColor3 = Color3.fromRGB(210, 170, 60)
+sellBtn.TextColor3 = Color3.fromRGB(30, 25, 10)
+sellBtn.Font = Enum.Font.GothamBold
+sellBtn.TextSize = 13
+sellBtn.Text = "Sell all"
+sellBtn.Parent = hud
+local sbCorner = Instance.new("UICorner")
+sbCorner.CornerRadius = UDim.new(0, 6)
+sbCorner.Parent = sellBtn
+sellBtn.Activated:Connect(function()
+	Remotes.SellAll:FireServer()
+end)
 
-local function rowFrame(order: number, height: number): Frame
-	local f = Instance.new("Frame")
-	f.Size = UDim2.new(1, 0, 0, height)
-	f.BackgroundTransparency = 1
-	f.LayoutOrder = order
-	f.Parent = root
-	local h = Instance.new("UIListLayout")
-	h.FillDirection = Enum.FillDirection.Horizontal
-	h.Padding = UDim.new(0, 8)
-	h.SortOrder = Enum.SortOrder.LayoutOrder
-	h.Parent = f
-	return f
-end
+-- ---- hint ----
+local hint = Instance.new("TextLabel")
+hint.Size = UDim2.new(0, 560, 0, 22)
+hint.Position = UDim2.new(0.5, -280, 0, 12)
+hint.BackgroundTransparency = 1
+hint.TextColor3 = Color3.fromRGB(255, 255, 255)
+hint.TextStrokeTransparency = 0.5
+hint.Font = Enum.Font.GothamMedium
+hint.TextSize = 15
+hint.Text = "Find your 🌱 farm below · press E on a plot to plant / harvest · sell at 🧺 Market"
+hint.Parent = gui
 
-local header = label("Bloomly - connecting...", 1, 26, 22)
-label("Seeds (tap to select, then tap an empty plot):", 2, 18, 14)
-local seedsRow = rowFrame(3, 64)
-label("Plots (tap empty = plant selected seed, tap READY = harvest):", 4, 18, 14)
-local plotsRow = rowFrame(5, 72)
-local sellButton = Instance.new("TextButton")
-sellButton.Size = UDim2.new(0, 220, 0, 40)
-sellButton.LayoutOrder = 6
-sellButton.BackgroundColor3 = Color3.fromRGB(210, 170, 60)
-sellButton.TextColor3 = Color3.fromRGB(30, 25, 10)
-sellButton.Font = Enum.Font.GothamBold
-sellButton.TextSize = 16
-sellButton.Text = "Sell all -> coins"
-sellButton.Parent = root
-local invTitle = label("Inventory:", 7, 18, 14)
-local invBox = label("(empty)", 8, 120, 15)
-invBox.TextYAlignment = Enum.TextYAlignment.Top
-
--- ---- dynamic state --------------------------------------------------------------
-local selectedSeedId: string? = nil
-local seedButtons: { [string]: TextButton } = {}
-local plotButtons: { [number]: TextButton } = {}
-local latestView: any = nil
-local builtSeeds = false
-local builtPlots = false
+-- ---- bottom seed bar ----
+local seedBar = Instance.new("Frame")
+seedBar.Size = UDim2.new(0, 640, 0, 60)
+seedBar.Position = UDim2.new(0.5, -320, 1, -74)
+seedBar.BackgroundTransparency = 1
+seedBar.Parent = gui
+local barLayout = Instance.new("UIListLayout")
+barLayout.FillDirection = Enum.FillDirection.Horizontal
+barLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+barLayout.Padding = UDim.new(0, 6)
+barLayout.SortOrder = Enum.SortOrder.LayoutOrder
+barLayout.Parent = seedBar
 
 local COL_NORMAL = Color3.fromRGB(70, 110, 60)
 local COL_SELECTED = Color3.fromRGB(120, 190, 90)
 local COL_LOCKED = Color3.fromRGB(70, 70, 70)
 local COL_POOR = Color3.fromRGB(95, 72, 60)
-local COL_EMPTY = Color3.fromRGB(60, 70, 55)
-local COL_GROWING = Color3.fromRGB(90, 100, 70)
-local COL_READY = Color3.fromRGB(120, 190, 90)
 
--- Build the seed buttons once (the crop list is fixed; only unlocked-ness changes).
--- `view` is the dynamic snapshot from the server; typed `any` because it crosses the remote boundary.
+local seedButtons: { [string]: TextButton } = {}
+local builtSeeds = false
+
 local function buildSeeds(view: any)
 	for _, s in view.seeds do
 		local btn = Instance.new("TextButton")
@@ -112,72 +110,34 @@ local function buildSeeds(view: any)
 		btn.BackgroundColor3 = COL_NORMAL
 		btn.TextColor3 = Color3.fromRGB(245, 245, 240)
 		btn.Font = Enum.Font.GothamMedium
-		btn.TextSize = 13
+		btn.TextSize = 12
 		btn.Text = s.emoji .. " " .. s.id
-		btn.Parent = seedsRow
+		btn.Parent = seedBar
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 6)
+		corner.Parent = btn
 		seedButtons[s.id] = btn
-		-- INTENT: selecting a seed is purely local UI; nothing is sent until you tap a plot.
 		btn.Activated:Connect(function()
-			local latest = latestView
-			if latest then
-				for _, ss in latest.seeds do
-					if ss.id == s.id and not ss.unlocked then
-						return -- can't select a locked seed (server would reject it anyway)
-					end
-				end
-			end
-			selectedSeedId = s.id
-		end)
-	end
-end
-
--- Build the plot buttons once (count comes from the first view).
-local function buildPlots(view: any)
-	for _, p in view.plots do
-		local btn = Instance.new("TextButton")
-		btn.Size = UDim2.new(0, 110, 1, 0)
-		btn.BackgroundColor3 = COL_EMPTY
-		btn.TextColor3 = Color3.fromRGB(245, 245, 240)
-		btn.Font = Enum.Font.GothamMedium
-		btn.TextSize = 13
-		btn.Text = "Plot " .. p.index
-		btn.Parent = plotsRow
-		plotButtons[p.index] = btn
-		local index = p.index
-		btn.Activated:Connect(function()
-			local latest = latestView
-			if not latest then
-				return
-			end
-			local plot = latest.plots[index]
-			if plot and plot.ready then
-				-- INTENT: ask the server to harvest. The server re-checks readiness and rolls the mutation.
-				Remotes.Harvest:FireServer(index)
-			elseif plot and not plot.seedId and selectedSeedId then
-				-- INTENT: ask the server to plant. The server re-checks the plot is empty and the seed is unlocked.
-				Remotes.Plant:FireServer(selectedSeedId, index)
-			end
-			-- If the plot is mid-grow, or nothing is selected, we send nothing.
+			-- picking a seed is just a request; server records it + re-checks on plant
+			Remotes.SelectSeed:FireServer(s.id)
 		end)
 	end
 end
 
 local function render(view: any)
-	latestView = view
-	header.Text = string.format(
-		"Bloomly   coins: %d   Lv %d (%d xp)   codex: %d   harvests: %d",
-		view.coins, view.level, view.xp, view.codexCount, view.harvests
-	)
+	stats.Text = string.format("🪙 %d    Lv %d (%d xp)    📖 %d    🌾 %d", view.coins, view.level, view.xp, view.codexCount, view.harvests)
+
+	local count, worth = 0, 0
+	for _, item in view.inventory do
+		count += item.qty
+		worth += item.unitValue * item.qty
+	end
+	invLabel.Text = if count == 0 then "🎒 empty" else string.format("🎒 %d items · worth %dc", count, worth)
 
 	if not builtSeeds then
 		buildSeeds(view)
 		builtSeeds = true
 	end
-	if not builtPlots then
-		buildPlots(view)
-		builtPlots = true
-	end
-
 	for _, s in view.seeds do
 		local btn = seedButtons[s.id]
 		if btn then
@@ -185,58 +145,18 @@ local function render(view: any)
 				btn.BackgroundColor3 = COL_LOCKED
 				btn.Text = s.emoji .. " " .. s.id .. "\nLOCKED"
 			elseif not s.affordable then
-				btn.BackgroundColor3 = COL_POOR -- unlocked but you can't afford the seed cost
+				btn.BackgroundColor3 = COL_POOR
 				btn.Text = s.emoji .. " " .. s.id .. "\nneed " .. s.cost .. "c"
 			else
-				btn.BackgroundColor3 = if selectedSeedId == s.id then COL_SELECTED else COL_NORMAL
-				btn.Text = s.emoji .. " " .. s.id .. "\nbuy " .. s.cost .. "c · " .. s.growSeconds .. "s"
+				btn.BackgroundColor3 = if view.selectedSeed == s.id then COL_SELECTED else COL_NORMAL
+				btn.Text = s.emoji .. " " .. s.id .. "\nbuy " .. s.cost .. "c"
 			end
 		end
-	end
-
-	for _, p in view.plots do
-		local btn = plotButtons[p.index]
-		if btn then
-			if not p.seedId then
-				btn.BackgroundColor3 = COL_EMPTY
-				btn.Text = "Plot " .. p.index .. "\n(empty)"
-			elseif p.ready then
-				btn.BackgroundColor3 = COL_READY
-				btn.Text = p.emoji .. "  READY\ntap to harvest"
-			else
-				btn.BackgroundColor3 = COL_GROWING
-				btn.Text = p.emoji .. "  growing\n" .. p.secondsLeft .. "s left"
-			end
-		end
-	end
-
-	if #view.inventory == 0 then
-		invTitle.Text = "Inventory:"
-		invBox.Text = "(empty - harvest something)"
-	else
-		local total = 0
-		local lines = {}
-		for _, item in view.inventory do
-			local mut = if item.mutationId == "normal" then "" else " [" .. item.mutationId .. "]"
-			table.insert(lines, string.format("%s %s%s  x%d   @%dc = %dc",
-				item.emoji, item.plantId, mut, item.qty, item.unitValue, item.unitValue * item.qty))
-			total += item.unitValue * item.qty
-		end
-		invTitle.Text = "Inventory (sell value: " .. total .. "c):"
-		invBox.Text = table.concat(lines, "\n")
 	end
 end
 
--- INTENT: sell everything. No args -- the server prices your own inventory at the NPC floor.
-sellButton.Activated:Connect(function()
-	Remotes.SellAll:FireServer()
-end)
-
--- Keep rendering whatever truth the server pushes (join push + 1s cadence).
 Remotes.StateUpdate.OnClientEvent:Connect(render)
 
--- Initial fetch so we don't wait up to a second for the first push. Wrapped because the server
--- handler is assigned at server startup; the StateUpdate cadence covers us if this ever races.
 local ok, view = pcall(function()
 	return Remotes.GetState:InvokeServer()
 end)

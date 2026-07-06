@@ -17,6 +17,8 @@ local Mutations = require("../src/shared/data/Mutations")
 local Config = require("../src/shared/data/Config")
 local Rules = require("../src/shared/Rules")
 local SaveSchema = require("../src/shared/SaveSchema")
+local WorldLayout = require("../src/shared/data/WorldLayout")
+local PlotRules = require("../src/shared/PlotRules")
 
 local passed, failed = 0, 0
 local function check(name: string, cond: boolean)
@@ -262,6 +264,56 @@ do
 	eq("planted plot preserved", out.plots[1].seedId, "radish")
 	check("extra plots are empty", out.plots[6].seedId == nil)
 end
+
+-- ---- WorldLayout: procedural world geometry (pure -> the rare 3D bit we CAN test) ----
+do
+	local N = 50
+	-- no two of the 50 section centres are closer than one section's size (=> platforms never overlap)
+	local minDist = math.huge
+	local centers = {}
+	for i = 1, N do
+		centers[i] = WorldLayout.sectionCenter(i)
+	end
+	for i = 1, N do
+		for j = i + 1, N do
+			local dx = centers[i].x - centers[j].x
+			local dz = centers[i].z - centers[j].z
+			local d = math.sqrt(dx * dx + dz * dz)
+			if d < minDist then
+				minDist = d
+			end
+		end
+	end
+	check(string.format("50 sections never overlap (min gap %.0f >= size %.0f)", minDist, WorldLayout.SECTION_SIZE), minDist >= WorldLayout.SECTION_SIZE)
+
+	-- every plot pad sits fully inside its section
+	local half = WorldLayout.SECTION_SIZE / 2
+	local padHalf = WorldLayout.PAD_SIZE / 2
+	local allInside = true
+	local seen = {}
+	local distinct = true
+	for p = 1, 6 do
+		local o = WorldLayout.plotPadOffset(p, 6)
+		if math.abs(o.x) + padHalf > half or math.abs(o.z) + padHalf > half then
+			allInside = false
+		end
+		local kk = o.x .. "," .. o.z
+		if seen[kk] then
+			distinct = false
+		end
+		seen[kk] = true
+	end
+	check("all 6 plot pads fit inside their section", allInside)
+	check("plot pads are at distinct positions", distinct)
+end
+
+-- ---- PlotRules: claim + ownership (pure) ----
+eq("empty world -> claim section 1", PlotRules.pickFreeSection({}, 50), 1)
+eq("lowest free section is picked", PlotRules.pickFreeSection({ [1] = true, [2] = true }, 50), 3)
+check("full world -> no free section", PlotRules.pickFreeSection({ [1] = true, [2] = true, [3] = true }, 3) == nil)
+check("owner can act on own section", PlotRules.canInteract(500, 500))
+check("stranger cannot act on your section", not PlotRules.canInteract(500, 999))
+check("unclaimed section is not interactable", not PlotRules.canInteract(nil, 500))
 
 print(string.format("\n%d passed, %d failed", passed, failed))
 if failed > 0 then

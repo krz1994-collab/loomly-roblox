@@ -10,30 +10,50 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ProximityPromptService = game:GetService("ProximityPromptService")
 
 local Remotes = require(ReplicatedStorage.Bloomly.Remotes)
 local Config = require(ReplicatedStorage.Bloomly.data.Config)
+local PlotRules = require(ReplicatedStorage.Bloomly.PlotRules)
 local PlayerData = require(script.PlayerData)
 local Farm = require(script.Farm)
+local PlotClaim = require(script.PlotClaim)
+local World = require(script.World)
 
--- In the slice every player owns exactly Config.PLOT_COUNT plots. This is also the "owned plot
--- count" the plant-unlock rules key off. When a plot shop exists, this becomes per-player.
+-- Build the shared 3D world once, before anyone arrives.
+World.build()
+
+-- The seed each player wants the next Plant prompt to use (transient preference; never saved).
+local selectedSeed: { [number]: string } = {}
+
+-- Every player owns Config.PLOT_COUNT plots. This becomes per-player when the plot shop lands (L4).
 local function ownedPlotsFor(_player: Player): number
 	return Config.PLOT_COUNT
 end
 
--- Send a player their authoritative view. The ONLY way state reaches a client.
+-- Send a player their authoritative view AND render their garden into the 3D world so EVERYONE sees
+-- it. The view is the single source of truth; the 3D crops are just another renderer of it.
 local function pushState(player: Player)
 	local state = PlayerData.get(player)
-	if state then
-		Remotes.StateUpdate:FireClient(player, Farm.buildView(state, ownedPlotsFor(player)))
+	if not state then
+		return
+	end
+	local view: any = Farm.buildView(state, ownedPlotsFor(player))
+	local section = PlotClaim.sectionOf(player.UserId)
+	view.section = section -- so the client knows which section is its own
+	view.selectedSeed = selectedSeed[player.UserId]
+	Remotes.StateUpdate:FireClient(player, view)
+	if section then
+		World.renderSection(section, player.Name, view)
 	end
 end
 
 -- ---- lifecycle ------------------------------------------------------------------
 local function onPlayerAdded(player: Player)
-	PlayerData.load(player) -- creates/loads authoritative state (DataStore seam lives in load())
-	pushState(player)
+	PlayerData.load(player) -- loads authoritative state (DataStore in load())
+	PlotClaim.claim(player) -- assign a free farm section for this session
+	selectedSeed[player.UserId] = "radish" -- sensible default so the first Plant prompt just works
+	pushState(player) -- renders the section's crops + fills the client HUD
 end
 
 Players.PlayerAdded:Connect(onPlayerAdded)
@@ -43,7 +63,12 @@ for _, player in Players:GetPlayers() do
 end
 
 Players.PlayerRemoving:Connect(function(player)
-	PlayerData.unload(player) -- saves (seam) + frees memory
+	local section = PlotClaim.release(player) -- free the section for reuse
+	if section then
+		World.clearSection(section) -- reset it to "free" in the world
+	end
+	selectedSeed[player.UserId] = nil
+	PlayerData.unload(player) -- final save + release lock + free memory
 end)
 
 -- ---- GetState (RemoteFunction, client -> server) --------------------------------
@@ -102,6 +127,56 @@ Remotes.SellAll.OnServerEvent:Connect(function(player: Player)
 	local ok = Farm.sellAll(state)
 	if ok then
 		pushState(player)
+	end
+end)
+
+-- ---- SelectSeed (RemoteEvent, client -> server) ---------------------------------
+-- VALIDATES: seedId is a string. Only records a preference; the actual plant re-validates the seed
+-- (exists + unlocked + affordable) server-side.
+Remotes.SelectSeed.OnServerEvent:Connect(function(player: Player, seedId: any)
+	if type(seedId) == "string" then
+		selectedSeed[player.UserId] = seedId
+		pushState(player) -- so the HUD highlights the chosen seed
+	end
+end)
+
+-- ---- ProximityPrompt interactions (the 3D world's intents) ----------------------
+-- Walking up to a plot pad or the market and pressing the prompt fires this ON THE SERVER with the
+-- triggering player. We read the prompt's attributes, re-check the actor OWNS the targeted section,
+-- then run the same server-authoritative Farm logic. The client never decides the outcome; this is
+-- the 3D equivalent of the old button intents.
+ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt, player: Player)
+	local state = PlayerData.get(player)
+	if not state then
+		return
+	end
+	local kind = prompt:GetAttribute("kind")
+
+	if kind == "sell" then
+		if Farm.sellAll(state) then
+			pushState(player)
+		end
+	elseif kind == "plot" then
+		local section = prompt:GetAttribute("section")
+		local plotIndex = prompt:GetAttribute("plotIndex")
+		if type(section) ~= "number" or type(plotIndex) ~= "number" then
+			return
+		end
+		-- OWNERSHIP GUARD: you can only work the section you own. (Also, crops are addressed by YOUR
+		-- own plot index, so you fundamentally cannot touch another player's crops.)
+		if not PlotRules.canInteract(PlotClaim.ownerOfSection(section), player.UserId) then
+			return
+		end
+		local plot = state.plots[plotIndex]
+		local changed = false
+		if plot and plot.seedId == nil then
+			changed = Farm.plant(state, selectedSeed[player.UserId] or "radish", plotIndex, ownedPlotsFor(player))
+		elseif plot and plot.seedId ~= nil then
+			changed = Farm.harvest(state, plotIndex)
+		end
+		if changed then
+			pushState(player)
+		end
 	end
 end)
 
