@@ -211,9 +211,12 @@ local function buildSeeds(view: any)
 	end
 end
 
+local lastInventory: { any } = {} -- most recent inventory snapshot (for the trade offer picker)
+
 local function render(view: any)
 	stats.Text = string.format("🪙 %d    Lv %d (%d xp)    📖 %d    🌾 %d", view.coins, view.level, view.xp, view.codexCount, view.harvests)
 
+	lastInventory = view.inventory or {}
 	local count, worth = 0, 0
 	for _, item in view.inventory do
 		count += item.qty
@@ -272,6 +275,195 @@ local function render(view: any)
 end
 
 Remotes.StateUpdate.OnClientEvent:Connect(render)
+
+-- ================= TRADE UI (block 14b) =================
+-- A "Trade" button opens a player picker (request a trade / accept an incoming one). Once a session is
+-- live, TradeUpdate drives a two-column window: your offer, their offer, both confirm states, and a row
+-- of your inventory to offer from. All moves are server-authoritative (TradeRules).
+local function mkBtn(parent: Instance, text: string, w: number, color: Color3): TextButton
+	local b = Instance.new("TextButton")
+	b.Size = UDim2.new(0, w, 0, 30)
+	b.BackgroundColor3 = color
+	b.TextColor3 = Color3.fromRGB(255, 255, 255)
+	b.Font = Enum.Font.GothamBold
+	b.TextSize = 13
+	b.Text = text
+	b.Parent = parent
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, 6)
+	c.Parent = b
+	return b
+end
+
+local tradeBtn = mkBtn(gui, "🤝 Trade", 92, Color3.fromRGB(90, 130, 200))
+tradeBtn.Position = UDim2.new(1, -104, 0, 200)
+
+-- ---- player picker ----
+local picker = Instance.new("Frame")
+picker.Size = UDim2.new(0, 260, 0, 300)
+picker.Position = UDim2.new(0.5, -130, 0.5, -150)
+picker.BackgroundColor3 = Color3.fromRGB(28, 34, 44)
+picker.BorderSizePixel = 0
+picker.Visible = false
+picker.Parent = gui
+do
+	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 10); c.Parent = picker
+end
+local pickerTitle = Instance.new("TextLabel")
+pickerTitle.Size = UDim2.new(1, 0, 0, 30)
+pickerTitle.BackgroundTransparency = 1
+pickerTitle.TextColor3 = Color3.fromRGB(240, 245, 255)
+pickerTitle.Font = Enum.Font.GothamBold
+pickerTitle.TextSize = 15
+pickerTitle.Text = "🤝 Trade with..."
+pickerTitle.Parent = picker
+local pickerList = Instance.new("ScrollingFrame")
+pickerList.Size = UDim2.new(1, -16, 1, -80)
+pickerList.Position = UDim2.new(0, 8, 0, 34)
+pickerList.BackgroundTransparency = 1
+pickerList.BorderSizePixel = 0
+pickerList.ScrollBarThickness = 5
+pickerList.Parent = picker
+local pll = Instance.new("UIListLayout"); pll.Padding = UDim.new(0, 4); pll.Parent = pickerList
+local acceptBtn = mkBtn(picker, "✅ Accept incoming request", 240, Color3.fromRGB(80, 160, 90))
+acceptBtn.Position = UDim2.new(0, 10, 1, -74)
+acceptBtn.Size = UDim2.new(1, -20, 0, 28)
+local closePicker = mkBtn(picker, "Close", 240, Color3.fromRGB(120, 90, 90))
+closePicker.Position = UDim2.new(0, 10, 1, -40)
+closePicker.Size = UDim2.new(1, -20, 0, 28)
+closePicker.Activated:Connect(function() picker.Visible = false end)
+acceptBtn.Activated:Connect(function()
+	Remotes.TradeAction:FireServer({ do_ = "respond", accept = true })
+	picker.Visible = false
+end)
+local function refreshPicker()
+	for _, ch in pickerList:GetChildren() do
+		if ch:IsA("TextButton") then ch:Destroy() end
+	end
+	for _, other in Players:GetPlayers() do
+		if other ~= player then
+			local b = mkBtn(pickerList, other.Name, 230, Color3.fromRGB(70, 100, 150))
+			b.Size = UDim2.new(1, -6, 0, 28)
+			local uid = other.UserId
+			b.Activated:Connect(function()
+				Remotes.TradeAction:FireServer({ do_ = "request", target = uid })
+				picker.Visible = false
+			end)
+		end
+	end
+end
+tradeBtn.Activated:Connect(function()
+	refreshPicker()
+	picker.Visible = not picker.Visible
+end)
+
+-- ---- live trade window ----
+local tradeWin = Instance.new("Frame")
+tradeWin.Size = UDim2.new(0, 480, 0, 340)
+tradeWin.Position = UDim2.new(0.5, -240, 0.5, -170)
+tradeWin.BackgroundColor3 = Color3.fromRGB(26, 32, 40)
+tradeWin.BorderSizePixel = 0
+tradeWin.Visible = false
+tradeWin.Parent = gui
+do
+	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 10); c.Parent = tradeWin
+end
+local twTitle = Instance.new("TextLabel")
+twTitle.Size = UDim2.new(1, 0, 0, 28)
+twTitle.BackgroundTransparency = 1
+twTitle.TextColor3 = Color3.fromRGB(240, 245, 255)
+twTitle.Font = Enum.Font.GothamBold
+twTitle.TextSize = 15
+twTitle.Text = "Trade"
+twTitle.Parent = tradeWin
+local yourOffer = Instance.new("TextLabel")
+yourOffer.Size = UDim2.new(0.5, -12, 0, 120)
+yourOffer.Position = UDim2.new(0, 8, 0, 32)
+yourOffer.BackgroundColor3 = Color3.fromRGB(34, 44, 38)
+yourOffer.TextColor3 = Color3.fromRGB(220, 235, 220)
+yourOffer.Font = Enum.Font.Gotham
+yourOffer.TextSize = 13
+yourOffer.TextXAlignment = Enum.TextXAlignment.Left
+yourOffer.TextYAlignment = Enum.TextYAlignment.Top
+yourOffer.Text = ""
+yourOffer.Parent = tradeWin
+do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,6); c.Parent = yourOffer local p=Instance.new("UIPadding"); p.PaddingLeft=UDim.new(0,6); p.PaddingTop=UDim.new(0,4); p.Parent=yourOffer end
+local theirOffer = Instance.new("TextLabel")
+theirOffer.Size = UDim2.new(0.5, -12, 0, 120)
+theirOffer.Position = UDim2.new(0.5, 4, 0, 32)
+theirOffer.BackgroundColor3 = Color3.fromRGB(44, 38, 34)
+theirOffer.TextColor3 = Color3.fromRGB(235, 220, 220)
+theirOffer.Font = Enum.Font.Gotham
+theirOffer.TextSize = 13
+theirOffer.TextXAlignment = Enum.TextXAlignment.Left
+theirOffer.TextYAlignment = Enum.TextYAlignment.Top
+theirOffer.Text = ""
+theirOffer.Parent = tradeWin
+do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,6); c.Parent = theirOffer local p=Instance.new("UIPadding"); p.PaddingLeft=UDim.new(0,6); p.PaddingTop=UDim.new(0,4); p.Parent=theirOffer end
+local confirmLbl = Instance.new("TextLabel")
+confirmLbl.Size = UDim2.new(1, -16, 0, 20)
+confirmLbl.Position = UDim2.new(0, 8, 0, 156)
+confirmLbl.BackgroundTransparency = 1
+confirmLbl.TextColor3 = Color3.fromRGB(255, 240, 170)
+confirmLbl.Font = Enum.Font.GothamBold
+confirmLbl.TextSize = 13
+confirmLbl.Text = ""
+confirmLbl.Parent = tradeWin
+-- inventory row to offer from
+local invRow = Instance.new("ScrollingFrame")
+invRow.Size = UDim2.new(1, -16, 0, 84)
+invRow.Position = UDim2.new(0, 8, 0, 180)
+invRow.BackgroundColor3 = Color3.fromRGB(20, 24, 30)
+invRow.BorderSizePixel = 0
+invRow.ScrollBarThickness = 5
+invRow.Parent = tradeWin
+do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,6); c.Parent = invRow end
+local irl = Instance.new("UIGridLayout"); irl.CellSize = UDim2.new(0, 110, 0, 24); irl.CellPadding = UDim2.new(0, 4, 0, 4); irl.Parent = invRow
+local twConfirm = mkBtn(tradeWin, "✅ Confirm", 150, Color3.fromRGB(80, 160, 90))
+twConfirm.Position = UDim2.new(0, 8, 1, -40)
+local twCancel = mkBtn(tradeWin, "❌ Cancel", 150, Color3.fromRGB(170, 80, 80))
+twCancel.Position = UDim2.new(1, -158, 1, -40)
+twConfirm.Activated:Connect(function() Remotes.TradeAction:FireServer({ do_ = "confirm" }) end)
+twCancel.Activated:Connect(function() Remotes.TradeAction:FireServer({ do_ = "cancel" }) end)
+
+local function offerText(list: { any }): string
+	if not list or #list == 0 then
+		return "(nothing)"
+	end
+	local lines = {}
+	for _, it in list do
+		table.insert(lines, "• " .. it.key .. " x" .. it.qty)
+	end
+	return table.concat(lines, "\n")
+end
+
+local function rebuildInvRow()
+	for _, ch in invRow:GetChildren() do
+		if ch:IsA("TextButton") then ch:Destroy() end
+	end
+	for _, item in lastInventory do
+		-- buildView inventory rows are {plantId,mutationId,qty,...}; reconstruct the server inventory key
+		local invKey = (item.mutationId and item.mutationId ~= "") and (item.plantId .. "|" .. item.mutationId) or item.plantId
+		local b = mkBtn(invRow, (item.emoji or "") .. " +1", 110, Color3.fromRGB(70, 110, 150))
+		b.Activated:Connect(function()
+			Remotes.TradeAction:FireServer({ do_ = "offer", key = invKey, qty = 1 })
+		end)
+	end
+end
+
+Remotes.TradeUpdate.OnClientEvent:Connect(function(data: any)
+	if not data then
+		tradeWin.Visible = false
+		return
+	end
+	tradeWin.Visible = true
+	picker.Visible = false
+	twTitle.Text = "🤝 Trading with " .. tostring(data.partner)
+	yourOffer.Text = "YOUR OFFER:\n" .. offerText(data.yourOffer)
+	theirOffer.Text = (tostring(data.partner) .. "'S OFFER:\n") .. offerText(data.theirOffer)
+	confirmLbl.Text = "You: " .. (data.youConfirmed and "✅" or "⬜") .. "   Them: " .. (data.theyConfirmed and "✅" or "⬜") .. "   (offering resets confirms)"
+	rebuildInvRow()
+end)
 
 local ok, view = pcall(function()
 	return Remotes.GetState:InvokeServer()

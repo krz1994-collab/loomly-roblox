@@ -23,7 +23,10 @@ local Bloomly = script.Parent -- the ReplicatedStorage.Bloomly folder
 -- SelectSeed (client->server): "the seed I want the next Plant prompt to plant". Purely a preference;
 -- the actual planting is a server-side ProximityPrompt handler (see BloomlyServer).
 -- Notify (server->client): a short dialogue/toast line (quest accepted/completed, etc.).
-local EVENT_NAMES = { "Plant", "Harvest", "SellAll", "StateUpdate", "SelectSeed", "Notify" }
+-- Trade remotes (block 14b): direct player-to-player trade, both online, same server.
+--   TradeAction (client->server): { do="request"/"respond"/"offer"/"unoffer"/"confirm"/"cancel", ... }
+--   TradeUpdate (server->client): the live trade window state (partner, both offers, confirms) or nil
+local EVENT_NAMES = { "Plant", "Harvest", "SellAll", "StateUpdate", "SelectSeed", "Notify", "TradeAction", "TradeUpdate" }
 local FUNCTION_NAMES = { "GetState" }
 
 -- The server (and only the server) creates the folder + instances. It is safe to run this on
@@ -62,6 +65,8 @@ local Remotes = {
 	StateUpdate = folder:WaitForChild("StateUpdate") :: RemoteEvent,
 	SelectSeed = folder:WaitForChild("SelectSeed") :: RemoteEvent,
 	Notify = folder:WaitForChild("Notify") :: RemoteEvent,
+	TradeAction = folder:WaitForChild("TradeAction") :: RemoteEvent,
+	TradeUpdate = folder:WaitForChild("TradeUpdate") :: RemoteEvent,
 	GetState = folder:WaitForChild("GetState") :: RemoteFunction,
 }
 

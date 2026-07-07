@@ -40,6 +40,7 @@ local World = require(script.World)
 local Quest = require(script.Quest)
 local Events = require(script.Events)
 local Homestead = require(script.Homestead)
+local Trade = require(script.Trade)
 
 -- Build the shared 3D world once, before anyone arrives.
 World.build()
@@ -218,6 +219,8 @@ local function onPlayerAdded(player: Player)
 	end
 end
 
+Trade.setup(pushState) -- let the trade module refresh a player's HUD after escrow/settle
+
 Players.PlayerAdded:Connect(onPlayerAdded)
 -- Cover players who joined before this script ran.
 for _, player in Players:GetPlayers() do
@@ -225,6 +228,7 @@ for _, player in Players:GetPlayers() do
 end
 
 Players.PlayerRemoving:Connect(function(player)
+	Trade.onLeave(player) -- refund any open trade escrow BEFORE the save runs (no dupe/loss on disconnect)
 	local section = PlotClaim.release(player) -- free the section for reuse
 	if section then
 		World.clearSection(section) -- reset it to "free" in the world
@@ -299,6 +303,29 @@ Remotes.SelectSeed.OnServerEvent:Connect(function(player: Player, seedId: any)
 	if type(seedId) == "string" then
 		selectedSeed[player.UserId] = seedId
 		pushState(player) -- so the HUD highlights the chosen seed
+	end
+end)
+
+-- ---- TradeAction (RemoteEvent, client -> server) --------------------------------
+-- VALIDATES: the sub-action + arg types; Trade re-checks session membership + escrow holdings on the
+-- server. The client can only ask; every item move goes through the conservation-proven TradeRules.
+Remotes.TradeAction.OnServerEvent:Connect(function(player: Player, msg: any)
+	if type(msg) ~= "table" or type(msg.do_) ~= "string" then
+		return
+	end
+	local act = msg.do_
+	if act == "request" and type(msg.target) == "number" then
+		Trade.request(player, msg.target)
+	elseif act == "respond" then
+		Trade.respond(player, msg.accept == true)
+	elseif act == "offer" and type(msg.key) == "string" and type(msg.qty) == "number" then
+		Trade.offer(player, msg.key, math.floor(msg.qty))
+	elseif act == "unoffer" and type(msg.key) == "string" then
+		Trade.unoffer(player, msg.key)
+	elseif act == "confirm" then
+		Trade.confirm(player)
+	elseif act == "cancel" then
+		Trade.cancel(player)
 	end
 end)
 
