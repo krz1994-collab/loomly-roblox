@@ -218,15 +218,21 @@ Remotes.Notify.OnClientEvent:Connect(function(msg: string)
 	end)
 end)
 
--- ---- bottom seed bar ----
-local seedBar = Instance.new("Frame")
-seedBar.Size = UDim2.new(0, 640, 0, 60)
-seedBar.Position = UDim2.new(0.5, -320, 1, -74)
+-- ---- bottom seed bar (horizontal scroll: the crop roster is large now) ----
+local seedBar = Instance.new("ScrollingFrame")
+seedBar.Size = UDim2.new(0, 900, 0, 66)
+seedBar.Position = UDim2.new(0.5, -450, 1, -80)
 seedBar.BackgroundTransparency = 1
+seedBar.BorderSizePixel = 0
+seedBar.ScrollingDirection = Enum.ScrollingDirection.X
+seedBar.ScrollBarThickness = 6
+seedBar.CanvasSize = UDim2.new(0, 0, 0, 0)
+seedBar.AutomaticCanvasSize = Enum.AutomaticSize.X
 seedBar.Parent = gui
 local barLayout = Instance.new("UIListLayout")
 barLayout.FillDirection = Enum.FillDirection.Horizontal
-barLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+barLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+barLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 barLayout.Padding = UDim.new(0, 6)
 barLayout.SortOrder = Enum.SortOrder.LayoutOrder
 barLayout.Parent = seedBar

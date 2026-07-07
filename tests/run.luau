@@ -386,8 +386,12 @@ check("unclaimed section is not interactable", not PlotRules.canInteract(nil, 50
 do
 	local moon = Plants.get("moonberry") :: any
 	local crystal = Plants.get("crystalrose") :: any
-	check("13 plants (8 meadow + 5 enchanted)", #Plants.list == 13)
+	check("43 plants (8 meadow + 5 enchanted + 30 biome)", #Plants.list == 43)
 	check("wispberry is an enchanted-biome crop", (Plants.get("wispberry") :: any).biome == "enchanted")
+	-- biome crops gate behind their island's unlock flag
+	local ember = Plants.get("emberberry") :: any
+	check("volcano crop locked without island4 unlock", not Plants.isUnlocked(ember, { lifetimeEarned = 9e9, codex = {}, unlocks = {} }, 24))
+	check("volcano crop unlocks with island4 flag", Plants.isUnlocked(ember, { lifetimeEarned = 0, codex = {}, unlocks = { island4 = true } }, 24))
 	check("moonberry locked below 10000 earned", not Plants.isUnlocked(moon, { lifetimeEarned = 9999, codex = {} }, 24))
 	check("moonberry unlocks at 10000 earned", Plants.isUnlocked(moon, { lifetimeEarned = 10000, codex = {} }, 24))
 	local codex4 = { ["radish|normal"] = true, ["sunflower|golden"] = true, ["strawberry|normal"] = true, ["pumpkin|giant"] = true }

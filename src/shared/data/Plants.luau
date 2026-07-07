@@ -11,7 +11,7 @@
 -- VALUES PORTED VERBATIM from web economy.js PLANTS (the balance is the reuse; the code is not).
 -- Adding more crops later = adding rows here. No logic changes.
 
-export type Unlock = { type: string, v: number?, n: number? }
+export type Unlock = { type: string, v: number?, n: number?, ref: string? }
 export type Plant = {
 	id: string,
 	biome: string,
@@ -38,6 +38,48 @@ local Plants: { Plant } = {
 	{ id = "moonpetal",  biome = "enchanted", emoji = "🌸", cost = 24000, growMs = 3000000,  sell = 70000, tier = 11, unlock = { type = "earned", v = 300000 } },
 	{ id = "dreamroot",  biome = "enchanted", emoji = "💠", cost = 48000, growMs = 3600000,  sell = 150000, tier = 12, unlock = { type = "codex", n = 12 } },
 	{ id = "glimmergrass",biome = "enchanted",emoji = "✨", cost = 90000, growMs = 4200000,  sell = 320000, tier = 13, unlock = { type = "earned", v = 1000000 } },
+	-- ── Per-island biome crops (content): each line unlocks when you complete that island's quest
+	--    (reward sets the "islandN" flag). Sail there, do the NPC's quest, then plant them at home. ──
+	-- island 1 Sunny Beach
+	{ id = "beachmelon", biome = "beach", emoji = "🍈", cost = 48, growMs = 60000, sell = 120, tier = 3, unlock = { type = "unlock", ref = "island1" } },
+	{ id = "coconut", biome = "beach", emoji = "🥥", cost = 72, growMs = 90000, sell = 180, tier = 3, unlock = { type = "unlock", ref = "island1" } },
+	{ id = "seaoat", biome = "beach", emoji = "🌾", cost = 104, growMs = 120000, sell = 260, tier = 3, unlock = { type = "unlock", ref = "island1" } },
+	-- island 2 Whispering Woods
+	{ id = "wildberry", biome = "woods", emoji = "🫐", cost = 80, growMs = 90000, sell = 200, tier = 4, unlock = { type = "unlock", ref = "island2" } },
+	{ id = "mossbloom", biome = "woods", emoji = "🌼", cost = 120, growMs = 120000, sell = 300, tier = 4, unlock = { type = "unlock", ref = "island2" } },
+	{ id = "acorn", biome = "woods", emoji = "🌰", cost = 168, growMs = 160000, sell = 420, tier = 4, unlock = { type = "unlock", ref = "island2" } },
+	-- island 3 Frostpeak (slow, high value)
+	{ id = "frostberry", biome = "ice", emoji = "❄️", cost = 140, growMs = 150000, sell = 350, tier = 5, unlock = { type = "unlock", ref = "island3" } },
+	{ id = "snowpea", biome = "ice", emoji = "🟢", cost = 200, growMs = 200000, sell = 500, tier = 5, unlock = { type = "unlock", ref = "island3" } },
+	{ id = "iceblossom", biome = "ice", emoji = "🌨️", cost = 280, growMs = 260000, sell = 700, tier = 5, unlock = { type = "unlock", ref = "island3" } },
+	-- island 4 Volcano Isle
+	{ id = "emberberry", biome = "volcano", emoji = "🔥", cost = 220, growMs = 180000, sell = 550, tier = 6, unlock = { type = "unlock", ref = "island4" } },
+	{ id = "lavaroot", biome = "volcano", emoji = "🌶️", cost = 320, growMs = 240000, sell = 800, tier = 6, unlock = { type = "unlock", ref = "island4" } },
+	{ id = "magmapepper", biome = "volcano", emoji = "🫑", cost = 440, growMs = 320000, sell = 1100, tier = 6, unlock = { type = "unlock", ref = "island4" } },
+	-- island 5 Golden Dunes
+	{ id = "cactusfruit", biome = "desert", emoji = "🌵", cost = 340, growMs = 220000, sell = 850, tier = 7, unlock = { type = "unlock", ref = "island5" } },
+	{ id = "goldenwheat", biome = "desert", emoji = "🌾", cost = 480, growMs = 300000, sell = 1200, tier = 7, unlock = { type = "unlock", ref = "island5" } },
+	{ id = "sandmelon", biome = "desert", emoji = "🍈", cost = 640, growMs = 400000, sell = 1600, tier = 7, unlock = { type = "unlock", ref = "island5" } },
+	-- island 6 Crystal Cove
+	{ id = "crystalmoss", biome = "cave", emoji = "💠", cost = 520, growMs = 260000, sell = 1300, tier = 8, unlock = { type = "unlock", ref = "island6" } },
+	{ id = "glowvine", biome = "cave", emoji = "💚", cost = 720, growMs = 340000, sell = 1800, tier = 8, unlock = { type = "unlock", ref = "island6" } },
+	{ id = "voidberry", biome = "cave", emoji = "🟣", cost = 1000, growMs = 440000, sell = 2500, tier = 8, unlock = { type = "unlock", ref = "island6" } },
+	-- island 7 Mushroom Grove
+	{ id = "glowcap", biome = "grove", emoji = "🍄", cost = 800, growMs = 300000, sell = 2000, tier = 9, unlock = { type = "unlock", ref = "island7" } },
+	{ id = "nightbloom", biome = "grove", emoji = "🌸", cost = 1120, growMs = 400000, sell = 2800, tier = 9, unlock = { type = "unlock", ref = "island7" } },
+	{ id = "sporefern", biome = "grove", emoji = "🌿", cost = 1520, growMs = 520000, sell = 3800, tier = 9, unlock = { type = "unlock", ref = "island7" } },
+	-- island 8 Windy Cliffs
+	{ id = "cloudberry", biome = "mountain", emoji = "☁️", cost = 1280, growMs = 360000, sell = 3200, tier = 10, unlock = { type = "unlock", ref = "island8" } },
+	{ id = "peakflower", biome = "mountain", emoji = "🌺", cost = 1800, growMs = 480000, sell = 4500, tier = 10, unlock = { type = "unlock", ref = "island8" } },
+	{ id = "windgrass", biome = "mountain", emoji = "🍃", cost = 2400, growMs = 620000, sell = 6000, tier = 10, unlock = { type = "unlock", ref = "island8" } },
+	-- island 9 Coral Reef
+	{ id = "kelp", biome = "reef", emoji = "🌿", cost = 2000, growMs = 420000, sell = 5000, tier = 11, unlock = { type = "unlock", ref = "island9" } },
+	{ id = "pearlrice", biome = "reef", emoji = "🍚", cost = 2800, growMs = 560000, sell = 7000, tier = 11, unlock = { type = "unlock", ref = "island9" } },
+	{ id = "coralbloom", biome = "reef", emoji = "🪸", cost = 3800, growMs = 720000, sell = 9500, tier = 11, unlock = { type = "unlock", ref = "island9" } },
+	-- island 10 Misty Highlands
+	{ id = "mistherb", biome = "highland", emoji = "🌿", cost = 3200, growMs = 480000, sell = 8000, tier = 12, unlock = { type = "unlock", ref = "island10" } },
+	{ id = "relicroot", biome = "highland", emoji = "🥀", cost = 4400, growMs = 640000, sell = 11000, tier = 12, unlock = { type = "unlock", ref = "island10" } },
+	{ id = "dewlily", biome = "highland", emoji = "🌷", cost = 6000, growMs = 840000, sell = 15000, tier = 12, unlock = { type = "unlock", ref = "island10" } },
 }
 
 local P = {}
@@ -57,7 +99,7 @@ end
 -- and used to build the "unlocked seeds" list the client renders.
 --   state       = the player's authoritative data (needs .lifetimeEarned)
 --   ownedPlots  = how many plots the player owns (slice: Config.PLOT_COUNT)
-function P.isUnlocked(plant: Plant, state: { lifetimeEarned: number, codex: { [string]: boolean }? }, ownedPlots: number): boolean
+function P.isUnlocked(plant: Plant, state: { lifetimeEarned: number, codex: { [string]: boolean }?, unlocks: { [string]: boolean }? }, ownedPlots: number): boolean
 	local u = plant.unlock
 	if u.type == "start" then
 		return true
@@ -65,6 +107,9 @@ function P.isUnlocked(plant: Plant, state: { lifetimeEarned: number, codex: { [s
 		return state.lifetimeEarned >= (u.v or 0)
 	elseif u.type == "plot" then
 		return ownedPlots >= (u.n or 0)
+	elseif u.type == "unlock" then
+		-- gated behind an island (or feature) unlock flag set by a quest reward, e.g. "island4".
+		return state.unlocks ~= nil and state.unlocks[u.ref or ""] == true
 	elseif u.type == "codex" then
 		-- unlocked once you've DISCOVERED `n` distinct plant species (any mutation counts once).
 		local species: { [string]: boolean } = {}
