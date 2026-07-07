@@ -25,6 +25,7 @@ local Quests = require("../src/shared/data/Quests")
 local UpgradeRules = require("../src/shared/UpgradeRules")
 local Upgrades = require("../src/shared/data/Upgrades")
 local GatherRules = require("../src/shared/GatherRules")
+local TreasureRules = require("../src/shared/TreasureRules")
 
 local passed, failed = 0, 0
 local function check(name: string, cond: boolean)
@@ -221,7 +222,7 @@ local function tmpl(): any
 	for _ = 1, 6 do
 		table.insert(plots, { seedId = nil, readyAt = nil })
 	end
-	return { coins = 20, lifetimeEarned = 0, harvests = 0, xp = 0, codex = {}, inventory = {}, plots = plots, rebirths = 0, daily = { day = 0, streak = 0 }, quests = { done = {}, active = {} }, unlocks = {}, upgrades = {} }
+	return { coins = 20, lifetimeEarned = 0, harvests = 0, xp = 0, codex = {}, inventory = {}, plots = plots, rebirths = 0, daily = { day = 0, streak = 0 }, quests = { done = {}, active = {} }, unlocks = {}, upgrades = {}, treasuresFound = {} }
 end
 do
 	local st: any = {
@@ -236,6 +237,7 @@ do
 		quests = { done = { tut_01 = true }, active = { tut_02 = { step = 1, prog = 1 } } },
 		unlocks = { boat = true },
 		upgrades = { plots = 2, sellBonus = 1 },
+		treasuresFound = { t_1_1 = true },
 		plots = {
 			{ seedId = "radish", readyAt = 1700000000 },
 			{ seedId = nil, readyAt = nil },
@@ -533,6 +535,32 @@ do
 		counts[id] = (counts[id] or 0) + 1
 	end
 	check("common bug (white w34) > rare bug (rainbow w3)", (counts["white"] or 0) > (counts["rainbow"] or 0))
+end
+
+-- ---- TreasureRules: deterministic spread + one-time claim ----
+do
+	local half = 200
+	local inside, distinct = true, true
+	local seen = {}
+	for k = 1, 5 do
+		local o = TreasureRules.spotFor(3, k, 5, half)
+		if math.abs(o.x) > half or math.abs(o.z) > half then
+			inside = false
+		end
+		local kk = string.format("%.2f,%.2f", o.x, o.z)
+		if seen[kk] then
+			distinct = false
+		end
+		seen[kk] = true
+	end
+	check("treasure spots stay within the region", inside)
+	check("treasure spots are distinct", distinct)
+	check("higher tier pays more", TreasureRules.reward(5) > TreasureRules.reward(1))
+	local st: any = { coins = 0, lifetimeEarned = 0 }
+	local ok, coins = TreasureRules.claim(st, "t_1_1", 2)
+	check("first claim pays out", ok and coins == TreasureRules.reward(2) and st.coins == coins)
+	check("second claim is refused", not (TreasureRules.claim(st, "t_1_1", 2)))
+	check("claimed flag recorded", TreasureRules.isFound(st, "t_1_1"))
 end
 
 print(string.format("\n%d passed, %d failed", passed, failed))

@@ -21,6 +21,7 @@ local Catalog = require(ReplicatedStorage.Bloomly.data.Catalog)
 local UpgradeRules = require(ReplicatedStorage.Bloomly.UpgradeRules)
 local Upgrades = require(ReplicatedStorage.Bloomly.data.Upgrades)
 local GatherRules = require(ReplicatedStorage.Bloomly.GatherRules)
+local TreasureRules = require(ReplicatedStorage.Bloomly.TreasureRules)
 
 local gatherRng = Random.new()
 local function gatherRand(): number
@@ -392,6 +393,19 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 				Quest.report(player, kind, id, 1)
 				Remotes.Notify:FireClient(player, "✨ Got a " .. id .. "!")
 				pushState(player)
+			end
+		end
+	elseif kind == "treasure" then
+		local tid = prompt:GetAttribute("tid")
+		local tier = prompt:GetAttribute("tier")
+		if type(tid) == "string" and type(tier) == "number" then
+			local ok, coins = TreasureRules.claim(state, tid, tier)
+			if ok then
+				Quest.report(player, "find_treasure", nil, 1)
+				Remotes.Notify:FireClient(player, "💰 Treasure! +" .. coins .. " coins!")
+				pushState(player)
+			else
+				Remotes.Notify:FireClient(player, "You already found this treasure. Look for others! 🗺️")
 			end
 		end
 	elseif kind == "upgrade" then

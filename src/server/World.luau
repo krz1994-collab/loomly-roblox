@@ -10,6 +10,7 @@ local WorldLayout = require(ReplicatedStorage.Bloomly.data.WorldLayout)
 local Catalog = require(ReplicatedStorage.Bloomly.data.Catalog)
 local Npcs = require(ReplicatedStorage.Bloomly.data.Npcs)
 local Upgrades = require(ReplicatedStorage.Bloomly.data.Upgrades)
+local TreasureRules = require(ReplicatedStorage.Bloomly.TreasureRules)
 
 local World = {}
 
@@ -340,6 +341,27 @@ function World.build()
 			pr:SetAttribute("islandIndex", i)
 		end
 		mkBillboard(mkPart("HarborSign", Vector3.new(3, 12, 3), CFrame.new(0, 6, dockZ + 16), Color3.fromRGB(120, 95, 70), rootF), 14, 2, 8).Text = "⚓ Harbor — sail to the islands"
+	end
+
+	-- hidden treasures: 5 per island (tier = island index) + 5 around the plaza
+	do
+		local perRegion = 5
+		local function spawnTreasures(seed: number, cx: number, cz: number, half: number, tier: number)
+			for k = 1, perRegion do
+				local o = TreasureRules.spotFor(seed, k, perRegion, half)
+				local chest = mkPart("Treasure_" .. seed .. "_" .. k, Vector3.new(4, 3, 4), CFrame.new(cx + o.x, 1.5, cz + o.z), Color3.fromRGB(230, 200, 90), rootF, Enum.Material.Neon)
+				local pr = mkPrompt(chest, "Dig treasure", "treasure")
+				pr:SetAttribute("tid", "t_" .. seed .. "_" .. k)
+				pr:SetAttribute("tier", tier)
+				pr.MaxActivationDistance = 8
+				mkBillboard(chest, 4, 1.4, 3).Text = "💰"
+			end
+		end
+		spawnTreasures(0, 0, WorldLayout.PLAZA_Z, WorldLayout.PLAZA_RADIUS + 30, 1)
+		for i = 1, WorldLayout.ISLAND_COUNT do
+			local c = WorldLayout.islandCenter(i)
+			spawnTreasures(i, c.x, c.z, WorldLayout.ISLAND_SIZE / 2 * 0.75, i + 1)
+		end
 	end
 
 	print(string.format("[Bloomly] world built: %d plots (300x300), %d pads, %d islands, %d instances", Config.PLOT_SECTIONS, Config.PLOT_SECTIONS * Config.PLOT_COUNT, WorldLayout.ISLAND_COUNT, #rootF:GetDescendants()))

@@ -29,6 +29,7 @@ export type PlayerState = {
 	quests: { done: { [string]: boolean }, active: { [string]: { step: number, prog: number } } },
 	unlocks: { [string]: boolean }, -- boats/islands/features unlocked via quest rewards
 	upgrades: { [string]: number }, -- upgrade track -> level
+	treasuresFound: { [string]: boolean }, -- one-time-claimed hidden treasures
 }
 
 local SaveSchema = {}
@@ -74,6 +75,7 @@ function SaveSchema.serialize(state: PlayerState): any
 		quests = deepCopy(state.quests),
 		unlocks = deepCopy(state.unlocks),
 		upgrades = deepCopy(state.upgrades),
+		treasuresFound = deepCopy(state.treasuresFound),
 	}
 end
 
@@ -124,6 +126,16 @@ function SaveSchema.validate(candidate: any, template: PlayerState): PlayerState
 		for k, v in t.upgrades do
 			if type(k) == "string" and isNonNegNumber(v) then
 				out.upgrades[k] = math.floor(v)
+			end
+		end
+	end
+
+	-- treasuresFound: map of string->true
+	out.treasuresFound = {}
+	if type(t.treasuresFound) == "table" then
+		for k, v in t.treasuresFound do
+			if type(k) == "string" and v == true then
+				out.treasuresFound[k] = true
 			end
 		end
 	end

@@ -60,6 +60,7 @@ export type PlayerState = {
 	quests: { done: { [string]: boolean }, active: { [string]: { step: number, prog: number } } },
 	unlocks: { [string]: boolean }, -- boats/islands/features from quest rewards
 	upgrades: { [string]: number }, -- upgrade track -> level
+	treasuresFound: { [string]: boolean }, -- one-time-claimed treasures
 }
 
 local PlayerData = {}
@@ -86,6 +87,7 @@ local function makeDefault(): PlayerState
 		quests = { done = {}, active = {} },
 		unlocks = {},
 		upgrades = {},
+		treasuresFound = {},
 	}
 end
 
