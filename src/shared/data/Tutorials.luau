@@ -17,7 +17,7 @@ local ACTIVITIES = {
 	"welcome", "plant", "harvest", "sell", "mutations", "quests", "upgrade",
 	"fish", "catch_bug", "mine", "forage", "orchard", "animals", "breed",
 	"cook", "bees", "house", "decorate", "trade", "sail", "treasure",
-	"museum", "rebirth", "daily", "map", "events", "pets",
+	"museum", "rebirth", "daily", "map", "events", "pets", "challenges",
 }
 
 local Tutorials: { Tutorial } = {
@@ -48,6 +48,7 @@ local Tutorials: { Tutorial } = {
 	{ id = "map", title = "The Map", emoji = "🗺️", mascotLine = "Lost? Check the minimap in the corner, or press the Map button for the whole world!", hint = "Minimap (corner) + Map button. Red dot = you, green = your farm." },
 	{ id = "events", title = "Epic Events", emoji = "🌟", mascotLine = "Watch for EPIC events like Blood Moon and Gold Rush -- huge boosts for everyone!", hint = "Server events (top banner) give everyone big coin/mutation/luck boosts for a while." },
 	{ id = "pets", title = "Pets", emoji = "🐾", mascotLine = "Adopt a pet or hatch an egg! Your equipped pet gives a passive boost -- all earned, never P2W.", hint = "Pet Shop = adopt; Egg Hatchery = mystery pet. The strongest owned pet auto-equips (coins/luck/grow)." },
+	{ id = "challenges", title = "Daily Challenges", emoji = "🎯", mascotLine = "Check the 🎯 Challenge Board for 3 daily goals -- finish them for bonus coins, new ones tomorrow!", hint = "Challenge Board: 3 goals a day (harvest/sell/fish...). Press it to claim rewards when done." },
 }
 
 local M = {}

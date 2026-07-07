@@ -34,6 +34,8 @@ local TutorialRules = require(ReplicatedStorage.Bloomly.TutorialRules)
 local Tutorials = require(ReplicatedStorage.Bloomly.data.Tutorials)
 local Pets = require(ReplicatedStorage.Bloomly.data.Pets)
 local PetRules = require(ReplicatedStorage.Bloomly.PetRules)
+local ChallengeRules = require(ReplicatedStorage.Bloomly.ChallengeRules)
+local Challenges = require(ReplicatedStorage.Bloomly.data.Challenges)
 
 local gatherRng = Random.new()
 local function gatherRand(): number
@@ -138,7 +140,7 @@ local PROMPT_TUT: { [string]: string } = {
 	talk = "quests", sell = "sell", plot = "plant", sail = "sail", buyboat = "sail",
 	rebirth = "rebirth", dailygift = "daily", fish = "fish", catch_bug = "catch_bug",
 	mine = "mine", forage = "forage", treasure = "treasure", museum = "museum", upgrade = "upgrade",
-	adoptpet = "pets", hatchegg = "pets",
+	adoptpet = "pets", hatchegg = "pets", challenges = "challenges",
 }
 local HOME_TUT: { [string]: string } = {
 	orchard_plant = "orchard", orchard_pick = "orchard", pen_buy = "animals", pen_collect = "animals",
@@ -644,6 +646,27 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 			table.insert(lines, p.emoji .. " " .. p.name .. " -- " .. p.price .. " R$")
 		end
 		Remotes.Notify:FireClient(player, table.concat(lines, "\n"))
+	elseif kind == "challenges" then
+		-- Claim any finished daily challenges, then show today's board with live progress.
+		local today = math.floor(os.time() / 86400)
+		local reward, claimed = ChallengeRules.claimAll(state.challenges, today, Challenges.list, Challenges.DAILY_COUNT)
+		if reward > 0 then
+			state.coins += reward
+			state.lifetimeEarned += reward
+		end
+		local lines = { "🎯 Daily Challenges:" }
+		for _, c in ChallengeRules.dailySet(today, Challenges.list, Challenges.DAILY_COUNT) do
+			local p = math.min(state.challenges.prog[c.id] or 0, c.target)
+			local mark = if state.challenges.claimed[c.id] then "✅" elseif p >= c.target then "🎁" else "•"
+			table.insert(lines, mark .. " " .. c.desc .. " (" .. p .. "/" .. c.target .. ") +" .. c.reward .. "c")
+		end
+		if claimed > 0 then
+			table.insert(lines, 1, "Claimed " .. claimed .. " for +" .. reward .. "c!")
+		end
+		Remotes.Notify:FireClient(player, table.concat(lines, "\n"))
+		if reward > 0 then
+			pushState(player)
+		end
 	elseif kind == "adoptpet" then
 		-- Buy the best pet you can afford + don't own yet; auto-equip the strongest owned.
 		local best: any = nil

@@ -234,6 +234,10 @@ function World.build()
 		local daily = mkPart("DailyGift", Vector3.new(5, 8, 5), CFrame.new(62, 4, WorldLayout.PLAZA_Z), Color3.fromRGB(220, 90, 90), rootF)
 		mkPrompt(daily, "Claim daily gift", "dailygift")
 		mkBillboard(daily, 8, 1.6, 6).Text = "🎁 Daily Gift"
+		-- Challenge Board: 3 rotating daily challenges; press to view progress + claim rewards (content).
+		local board = mkPart("ChallengeBoard", Vector3.new(7, 8, 2), CFrame.new(78, 4, WorldLayout.PLAZA_Z), Color3.fromRGB(90, 120, 170), rootF)
+		mkPrompt(board, "Daily challenges", "challenges")
+		mkBillboard(board, 9, 1.7, 6).Text = "🎯 Daily Challenges"
 		-- Museum: donate one of every item for badges + rewards (block 14).
 		local museum = mkPart("Museum", Vector3.new(14, 14, 10), CFrame.new(-95, 7, WorldLayout.PLAZA_Z + 30), Color3.fromRGB(210, 200, 175), rootF, Enum.Material.Marble)
 		mkPrompt(museum, "Donate to museum", "museum")

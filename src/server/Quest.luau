@@ -7,6 +7,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local QuestRules = require(ReplicatedStorage.Bloomly.QuestRules)
 local Rules = require(ReplicatedStorage.Bloomly.Rules)
 local Quests = require(ReplicatedStorage.Bloomly.data.Quests)
+local ChallengeRules = require(ReplicatedStorage.Bloomly.ChallengeRules)
+local Challenges = require(ReplicatedStorage.Bloomly.data.Challenges)
 local PlayerData = require(script.Parent.PlayerData)
 
 local Quest = {}
@@ -16,6 +18,10 @@ function Quest.report(player: Player, kind: string, target: string?, n: number?)
 	local state = PlayerData.get(player)
 	if not state then
 		return false
+	end
+	-- Same event also feeds the DAILY CHALLENGES (one central hook, zero extra call sites).
+	if state.challenges then
+		ChallengeRules.bump(state.challenges, math.floor(os.time() / 86400), Challenges.list, Challenges.DAILY_COUNT, kind, n or 1)
 	end
 	return QuestRules.report(state, Quests.list, kind, target, n or 1)
 end

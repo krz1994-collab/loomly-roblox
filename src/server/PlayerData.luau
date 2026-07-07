@@ -70,6 +70,7 @@ export type PlayerState = {
 	museum: { [string]: boolean }, -- donated inventory keys (block 14)
 	tutorialsSeen: { [string]: boolean }, -- tutorials already shown (block 2)
 	pets: { owned: { [string]: boolean }, equipped: string? }, -- adopted pets (content)
+	challenges: { day: number, prog: { [string]: number }, claimed: { [string]: boolean } }, -- daily challenges (content)
 }
 
 local PlayerData = {}
@@ -106,6 +107,7 @@ local function makeDefault(): PlayerState
 		museum = {},
 		tutorialsSeen = {},
 		pets = { owned = {}, equipped = nil },
+		challenges = { day = 0, prog = {}, claimed = {} },
 	}
 end
 

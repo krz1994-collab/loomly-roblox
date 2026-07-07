@@ -40,6 +40,7 @@ export type PlayerState = {
 	museum: { [string]: boolean }, -- donated inventory keys (block 14)
 	tutorialsSeen: { [string]: boolean }, -- tutorials already shown (block 2)
 	pets: { owned: { [string]: boolean }, equipped: string? }, -- adopted pets + the active one (content)
+	challenges: { day: number, prog: { [string]: number }, claimed: { [string]: boolean } }, -- daily challenges (content)
 }
 
 local SaveSchema = {}
@@ -95,6 +96,7 @@ function SaveSchema.serialize(state: PlayerState): any
 		museum = deepCopy(state.museum),
 		tutorialsSeen = deepCopy(state.tutorialsSeen),
 		pets = deepCopy(state.pets),
+		challenges = deepCopy(state.challenges),
 	}
 end
 
@@ -258,6 +260,24 @@ function SaveSchema.validate(candidate: any, template: PlayerState): PlayerState
 		for k, v in pt.owned do
 			if type(k) == "string" and v == true then
 				out.pets.owned[k] = true
+			end
+		end
+	end
+
+	-- challenges: { day, prog = {[id]=count}, claimed = {[id]=true} }
+	local ct: any = type(t.challenges) == "table" and t.challenges or {}
+	out.challenges = { day = isNonNegNumber(ct.day) and math.floor(ct.day) or 0, prog = {}, claimed = {} }
+	if type(ct.prog) == "table" then
+		for k, v in ct.prog do
+			if type(k) == "string" and isNonNegNumber(v) then
+				out.challenges.prog[k] = math.floor(v)
+			end
+		end
+	end
+	if type(ct.claimed) == "table" then
+		for k, v in ct.claimed do
+			if type(k) == "string" and v == true then
+				out.challenges.claimed[k] = true
 			end
 		end
 	end

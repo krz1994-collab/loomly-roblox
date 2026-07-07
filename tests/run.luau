@@ -49,6 +49,8 @@ local TutorialRules = require("../src/shared/TutorialRules")
 local Tutorials = require("../src/shared/data/Tutorials")
 local PetRules = require("../src/shared/PetRules")
 local Pets = require("../src/shared/data/Pets")
+local ChallengeRules = require("../src/shared/ChallengeRules")
+local Challenges = require("../src/shared/data/Challenges")
 
 local passed, failed = 0, 0
 local function check(name: string, cond: boolean)
@@ -247,7 +249,7 @@ local function tmpl(): any
 	for _ = 1, 6 do
 		table.insert(plots, { seedId = nil, readyAt = nil })
 	end
-	return { coins = 20, lifetimeEarned = 0, harvests = 0, xp = 0, codex = {}, inventory = {}, plots = plots, rebirths = 0, daily = { day = 0, streak = 0 }, quests = { done = {}, active = {} }, unlocks = {}, upgrades = {}, treasuresFound = {}, orchard = {}, animals = {}, kitchen = { recipeId = nil, doneAt = nil }, bees = { level = 0, lastCollect = 0 }, house = { tier = 0, lastRent = 0, decor = {} }, achievements = {}, museum = {}, tutorialsSeen = {}, pets = { owned = {}, equipped = nil } }
+	return { coins = 20, lifetimeEarned = 0, harvests = 0, xp = 0, codex = {}, inventory = {}, plots = plots, rebirths = 0, daily = { day = 0, streak = 0 }, quests = { done = {}, active = {} }, unlocks = {}, upgrades = {}, treasuresFound = {}, orchard = {}, animals = {}, kitchen = { recipeId = nil, doneAt = nil }, bees = { level = 0, lastCollect = 0 }, house = { tier = 0, lastRent = 0, decor = {} }, achievements = {}, museum = {}, tutorialsSeen = {}, pets = { owned = {}, equipped = nil }, challenges = { day = 0, prog = {}, claimed = {} } }
 end
 do
 	local st: any = {
@@ -272,6 +274,7 @@ do
 		museum = { ["radish|normal"] = true },
 		tutorialsSeen = { welcome = true, plant = true },
 		pets = { owned = { chick = true, dragon = true }, equipped = "dragon" },
+		challenges = { day = 19600, prog = { harvest = 5 }, claimed = { c_sell = true } },
 		plots = {
 			{ seedId = "radish", readyAt = 1700000000 },
 			{ seedId = nil, readyAt = nil },
@@ -784,6 +787,31 @@ do
 	check("settle gave carrots to A", invA["carrot|normal"] == 2)
 	check("settle cleared escrows", next(escA) == nil and next(escB) == nil)
 	eq("CONSERVED after settle (no dupe/vanish)", grandTotal(), START)
+end
+
+-- ---- ChallengeRules: daily challenges (content) ----
+do
+	local pool = Challenges.list
+	local N = Challenges.DAILY_COUNT
+	-- deterministic + stable within a day, rotates across days
+	local setA = ChallengeRules.dailySet(100, pool, N)
+	local setA2 = ChallengeRules.dailySet(100, pool, N)
+	eq("daily set size", #setA, N)
+	check("same day -> same set", setA[1].id == setA2[1].id)
+	local setB = ChallengeRules.dailySet(101, pool, N)
+	check("next day rotates the set", setA[1].id ~= setB[1].id)
+	-- progress bump + reset on new day
+	local ch: any = { day = 0, prog = {}, claimed = {} }
+	local first = setA[1]
+	ChallengeRules.bump(ch, 100, pool, N, first.kind, first.target)
+	check("bump credits a matching challenge to done", ChallengeRules.isDone(first, ch))
+	local reward, claimed = ChallengeRules.claimAll(ch, 100, pool, N)
+	check("claim pays the reward", reward >= first.reward and claimed >= 1)
+	local reward2 = ChallengeRules.claimAll(ch, 100, pool, N)
+	eq("no double-claim same day", reward2, 0)
+	-- a new day resets progress
+	ChallengeRules.ensureDay(ch, 101)
+	check("new day clears progress", next(ch.prog) == nil and next(ch.claimed) == nil)
 end
 
 -- ---- PetRules (content) ----
