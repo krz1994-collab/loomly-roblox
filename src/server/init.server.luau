@@ -32,6 +32,8 @@ local Commands = require(ReplicatedStorage.Bloomly.data.Commands)
 local Premium = require(ReplicatedStorage.Bloomly.data.Premium)
 local TutorialRules = require(ReplicatedStorage.Bloomly.TutorialRules)
 local Tutorials = require(ReplicatedStorage.Bloomly.data.Tutorials)
+local Pets = require(ReplicatedStorage.Bloomly.data.Pets)
+local PetRules = require(ReplicatedStorage.Bloomly.PetRules)
 
 local gatherRng = Random.new()
 local function gatherRand(): number
@@ -136,6 +138,7 @@ local PROMPT_TUT: { [string]: string } = {
 	talk = "quests", sell = "sell", plot = "plant", sail = "sail", buyboat = "sail",
 	rebirth = "rebirth", dailygift = "daily", fish = "fish", catch_bug = "catch_bug",
 	mine = "mine", forage = "forage", treasure = "treasure", museum = "museum", upgrade = "upgrade",
+	adoptpet = "pets", hatchegg = "pets",
 }
 local HOME_TUT: { [string]: string } = {
 	orchard_plant = "orchard", orchard_pick = "orchard", pen_buy = "animals", pen_collect = "animals",
@@ -604,6 +607,7 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 		if type(cat) == "string" then
 			local luck = UpgradeRules.effectAt(Upgrades.get("luck") :: any, (state.upgrades and state.upgrades.luck) or 0)
 					* Events.mult(os.time(), "luck") -- active "luck" event (Gold Rush / Butterfly Migration etc.)
+					* Farm.petMult(state, "luck") -- equipped luck pet
 			local id: string? = nil
 			if cat == "mushroom" then
 				id = Catalog.Mushroom.id
@@ -640,6 +644,44 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 			table.insert(lines, p.emoji .. " " .. p.name .. " -- " .. p.price .. " R$")
 		end
 		Remotes.Notify:FireClient(player, table.concat(lines, "\n"))
+	elseif kind == "adoptpet" then
+		-- Buy the best pet you can afford + don't own yet; auto-equip the strongest owned.
+		local best: any = nil
+		for _, p in Pets.list do
+			if not state.pets.owned[p.id] and state.coins >= p.cost then
+				if best == nil or p.cost > best.cost then
+					best = p
+				end
+			end
+		end
+		if best then
+			state.coins -= best.cost
+			state.pets.owned[best.id] = true
+			state.pets.equipped = PetRules.bestOwned(state.pets.owned, Pets.get)
+			Quest.report(player, "buy_pet", best.id, 1)
+			Remotes.Notify:FireClient(player, best.emoji .. " Adopted a " .. best.name .. "! (" .. best.ability.type .. " +" .. math.floor(best.ability.value * 100) .. "%)")
+			pushState(player)
+		else
+			Remotes.Notify:FireClient(player, "Can't afford a new pet yet (or you own them all)!")
+		end
+	elseif kind == "hatchegg" then
+		-- Buy a mystery egg -> weighted hatch (rarer pets less likely). Auto-equips the strongest owned.
+		local EGG_COST = 2000
+		if state.coins < EGG_COST then
+			Remotes.Notify:FireClient(player, "A mystery egg costs " .. EGG_COST .. " coins!")
+		else
+			local id = PetRules.hatch(Pets.list, gatherRand)
+			local pet = if id then Pets.get(id) else nil
+			if pet then
+				state.coins -= EGG_COST
+				local dup = state.pets.owned[pet.id] == true
+				state.pets.owned[pet.id] = true
+				state.pets.equipped = PetRules.bestOwned(state.pets.owned, Pets.get)
+				Quest.report(player, "buy_pet", pet.id, 1)
+				Remotes.Notify:FireClient(player, "🥚➡️ " .. pet.emoji .. " You hatched a " .. pet.name .. (dup and " (duplicate)" or "!") .. "")
+				pushState(player)
+			end
+		end
 	elseif kind == "museum" then
 		-- Donate ONE of every inventory item type not yet in the museum; pay a flat reward each + a
 		-- collection badge. Encourages keeping one of everything rather than selling it all.

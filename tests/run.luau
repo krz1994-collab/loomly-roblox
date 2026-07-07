@@ -47,6 +47,8 @@ local MapRules = require("../src/shared/MapRules")
 local Premium = require("../src/shared/data/Premium")
 local TutorialRules = require("../src/shared/TutorialRules")
 local Tutorials = require("../src/shared/data/Tutorials")
+local PetRules = require("../src/shared/PetRules")
+local Pets = require("../src/shared/data/Pets")
 
 local passed, failed = 0, 0
 local function check(name: string, cond: boolean)
@@ -245,7 +247,7 @@ local function tmpl(): any
 	for _ = 1, 6 do
 		table.insert(plots, { seedId = nil, readyAt = nil })
 	end
-	return { coins = 20, lifetimeEarned = 0, harvests = 0, xp = 0, codex = {}, inventory = {}, plots = plots, rebirths = 0, daily = { day = 0, streak = 0 }, quests = { done = {}, active = {} }, unlocks = {}, upgrades = {}, treasuresFound = {}, orchard = {}, animals = {}, kitchen = { recipeId = nil, doneAt = nil }, bees = { level = 0, lastCollect = 0 }, house = { tier = 0, lastRent = 0, decor = {} }, achievements = {}, museum = {}, tutorialsSeen = {} }
+	return { coins = 20, lifetimeEarned = 0, harvests = 0, xp = 0, codex = {}, inventory = {}, plots = plots, rebirths = 0, daily = { day = 0, streak = 0 }, quests = { done = {}, active = {} }, unlocks = {}, upgrades = {}, treasuresFound = {}, orchard = {}, animals = {}, kitchen = { recipeId = nil, doneAt = nil }, bees = { level = 0, lastCollect = 0 }, house = { tier = 0, lastRent = 0, decor = {} }, achievements = {}, museum = {}, tutorialsSeen = {}, pets = { owned = {}, equipped = nil } }
 end
 do
 	local st: any = {
@@ -269,6 +271,7 @@ do
 		achievements = { first_harvest = true },
 		museum = { ["radish|normal"] = true },
 		tutorialsSeen = { welcome = true, plant = true },
+		pets = { owned = { chick = true, dragon = true }, equipped = "dragon" },
 		plots = {
 			{ seedId = "radish", readyAt = 1700000000 },
 			{ seedId = nil, readyAt = nil },
@@ -781,6 +784,21 @@ do
 	check("settle gave carrots to A", invA["carrot|normal"] == 2)
 	check("settle cleared escrows", next(escA) == nil and next(escB) == nil)
 	eq("CONSERVED after settle (no dupe/vanish)", grandTotal(), START)
+end
+
+-- ---- PetRules (content) ----
+do
+	check("9 pets defined", #Pets.list == 9)
+	local dragon = Pets.get("dragon")
+	eq("dragon grows +15%", PetRules.abilityMult(dragon, "grow"), 1.15)
+	eq("dragon doesn't touch coins", PetRules.abilityMult(dragon, "coins"), 1)
+	eq("nil pet -> 1.0", PetRules.abilityMult(nil, "luck"), 1)
+	-- hatch always returns a valid pet id
+	local id = PetRules.hatch(Pets.list, function() return 0.5 end)
+	check("hatch returns a real pet", id ~= nil and Pets.get(id) ~= nil)
+	-- bestOwned picks the highest-value ability
+	local best = PetRules.bestOwned({ chick = true, unicorn = true }, Pets.get)
+	eq("bestOwned = unicorn (0.35)", best, "unicorn")
 end
 
 -- ---- TutorialRules + coverage (block 2) ----

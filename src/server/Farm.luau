@@ -16,6 +16,8 @@ local Trees = require(ReplicatedStorage.Bloomly.data.Trees)
 local Animals = require(ReplicatedStorage.Bloomly.data.Animals)
 local Recipes = require(ReplicatedStorage.Bloomly.data.Recipes)
 local Bees = require(ReplicatedStorage.Bloomly.data.Bees)
+local Pets = require(ReplicatedStorage.Bloomly.data.Pets)
+local PetRules = require(ReplicatedStorage.Bloomly.PetRules)
 local PlayerData = require(script.Parent.PlayerData)
 local Events = require(script.Parent.Events) -- active server-wide event multipliers (coins/mutation/grow/luck)
 
@@ -54,6 +56,15 @@ local function itemSell(key: string): (number, string)
 	return 0, "?"
 end
 
+-- The equipped pet's multiplier for a dimension (coins/luck/grow), or 1.0 if none.
+local function petMult(state: PlayerData.PlayerState, key: string): number
+	local eq = state.pets and state.pets.equipped
+	if not eq then
+		return 1
+	end
+	return PetRules.abilityMult(Pets.get(eq), key)
+end
+
 -- Effect value of an upgrade track for this player (1.0 / base if unbought).
 local function upEffect(state: PlayerData.PlayerState, trackId: string): number
 	local track = Upgrades.get(trackId)
@@ -66,6 +77,9 @@ end
 type PlayerState = PlayerData.PlayerState
 
 local Farm = {}
+
+-- Public alias so the gathering handler in init.server can apply the same equipped-pet luck bonus.
+Farm.petMult = petMult
 
 -- One RNG for the whole server. Roblox seeds Random.new() from a secure source. We wrap it as a
 -- plain `() -> number` so we can hand it to the pure Rules core (tests inject a fake instead).
@@ -132,8 +146,9 @@ function Farm.plant(state: PlayerState, seedId: string, plotIndex: number, owned
 	end
 	state.coins -= plant.cost
 	plot.seedId = seedId
-	-- grow time shrinks with the Fast-Growth upgrade AND any active "grow" event (Time Storm ×4 etc.)
-	local growDiv = upEffect(state, "growSpeed") * Events.mult(now(), "grow")
+	-- grow time shrinks with the Fast-Growth upgrade, an active "grow" event (Time Storm ×4 etc.), and
+	-- an equipped grow pet
+	local growDiv = upEffect(state, "growSpeed") * Events.mult(now(), "grow") * petMult(state, "grow")
 	plot.readyAt = Rules.readyAt(now(), plant.growMs / growDiv)
 	return true, "ok"
 end
@@ -157,7 +172,7 @@ function Farm.harvest(state: PlayerState, plotIndex: number): (boolean, string, 
 	-- SERVER decides the mutation. Lucky-Charm upgrade, a live beehive (pollination), AND any active
 	-- "mutation" event (Blood Moon ×3 etc.) all push the odds toward rarer tiers.
 	local hiveLvl = (state.bees and state.bees.level) or 0
-	local mutBoost = upEffect(state, "luck") * Events.mult(now(), "mutation") * Bees.pollinationMult(hiveLvl)
+	local mutBoost = upEffect(state, "luck") * Events.mult(now(), "mutation") * Bees.pollinationMult(hiveLvl) * petMult(state, "luck")
 	-- Enchanted Forest crops lean hard toward rare mutations (block 15 biome bias).
 	local seedPlant = Plants.get(seedId)
 	if seedPlant and seedPlant.biome == "enchanted" then
@@ -195,8 +210,8 @@ function Farm.sellAll(state: PlayerState): (boolean, number)
 	if gained <= 0 then
 		return false, 0 -- nothing sellable
 	end
-	-- prestige coinMult + Market-Deal upgrade + any active "coins" event (Market Boom / Golden Rain ×2)
-	gained = math.floor(gained * Rules.coinMult(state.rebirths or 0) * upEffect(state, "sellBonus") * Events.mult(now(), "coins"))
+	-- prestige coinMult + Market-Deal upgrade + "coins" event (Market Boom ×2) + equipped coins pet
+	gained = math.floor(gained * Rules.coinMult(state.rebirths or 0) * upEffect(state, "sellBonus") * Events.mult(now(), "coins") * petMult(state, "coins"))
 	state.coins += gained
 	state.lifetimeEarned += gained -- lifetimeEarned only ever grows; drives "earned" unlocks
 	table.clear(state.inventory)
@@ -264,6 +279,12 @@ function Farm.buildView(state: PlayerState, ownedPlots: number)
 		codexCount += 1
 	end
 
+	local petEmoji = ""
+	if state.pets and state.pets.equipped then
+		local p = Pets.get(state.pets.equipped)
+		petEmoji = if p then p.emoji else ""
+	end
+
 	return {
 		coins = state.coins,
 		lifetimeEarned = state.lifetimeEarned,
@@ -274,6 +295,7 @@ function Farm.buildView(state: PlayerState, ownedPlots: number)
 		plots = plots,
 		seeds = seeds,
 		inventory = inventory,
+		pet = petEmoji,
 	}
 end
 

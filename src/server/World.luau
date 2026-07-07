@@ -246,6 +246,13 @@ function World.build()
 		local bloomy = mkPart("Bloomy", Vector3.new(4, 6, 4), CFrame.new(10, 4, WorldLayout.PLAZA_Z - 10), Color3.fromRGB(120, 220, 120), rootF, Enum.Material.Neon)
 		bloomy.Shape = Enum.PartType.Ball
 		mkBillboard(bloomy, 8, 1.6, 5).Text = "🌱 Bloomy — press ❓ Help!"
+		-- Pet Shop + Egg Hatchery: adopt pets (passive coin/luck/grow boosts, earned not P2W) (content).
+		local petshop = mkPart("PetShop", Vector3.new(7, 9, 6), CFrame.new(-30, 4.5, WorldLayout.PLAZA_Z - 44), Color3.fromRGB(240, 180, 120), rootF)
+		mkPrompt(petshop, "Adopt a pet", "adoptpet")
+		mkBillboard(petshop, 9, 1.7, 6).Text = "🐾 Pet Shop"
+		local hatchery = mkPart("Hatchery", Vector3.new(6, 8, 6), CFrame.new(-14, 4, WorldLayout.PLAZA_Z - 44), Color3.fromRGB(250, 230, 180), rootF)
+		mkPrompt(hatchery, "Hatch a mystery egg (2000c)", "hatchegg")
+		mkBillboard(hatchery, 9, 1.7, 6).Text = "🥚 Egg Hatchery"
 	end
 
 	-- Homestead village (blocks 7-10): a row of stations behind the plaza. Each is a labelled hut with

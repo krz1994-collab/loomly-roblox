@@ -17,7 +17,7 @@ local ACTIVITIES = {
 	"welcome", "plant", "harvest", "sell", "mutations", "quests", "upgrade",
 	"fish", "catch_bug", "mine", "forage", "orchard", "animals", "breed",
 	"cook", "bees", "house", "decorate", "trade", "sail", "treasure",
-	"museum", "rebirth", "daily", "map", "events",
+	"museum", "rebirth", "daily", "map", "events", "pets",
 }
 
 local Tutorials: { Tutorial } = {
@@ -47,6 +47,7 @@ local Tutorials: { Tutorial } = {
 	{ id = "daily", title = "Daily Gift", emoji = "🎁", mascotLine = "Come back every day for the 🎁 Daily Gift -- the streak makes it bigger!", hint = "Daily Gift stand: claim once a day, keep your streak alive for more." },
 	{ id = "map", title = "The Map", emoji = "🗺️", mascotLine = "Lost? Check the minimap in the corner, or press the Map button for the whole world!", hint = "Minimap (corner) + Map button. Red dot = you, green = your farm." },
 	{ id = "events", title = "Epic Events", emoji = "🌟", mascotLine = "Watch for EPIC events like Blood Moon and Gold Rush -- huge boosts for everyone!", hint = "Server events (top banner) give everyone big coin/mutation/luck boosts for a while." },
+	{ id = "pets", title = "Pets", emoji = "🐾", mascotLine = "Adopt a pet or hatch an egg! Your equipped pet gives a passive boost -- all earned, never P2W.", hint = "Pet Shop = adopt; Egg Hatchery = mystery pet. The strongest owned pet auto-equips (coins/luck/grow)." },
 }
 
 local M = {}

@@ -270,7 +270,7 @@ local lastInventory: { any } = {} -- most recent inventory snapshot (for the tra
 local lastSection: number? = nil -- the player's own plot section (for the "your farm" map dot)
 
 local function render(view: any)
-	stats.Text = string.format("🪙 %d    Lv %d (%d xp)    📖 %d    🌾 %d", view.coins, view.level, view.xp, view.codexCount, view.harvests)
+	stats.Text = string.format("🪙 %d    Lv %d (%d xp)    📖 %d    🌾 %d%s", view.coins, view.level, view.xp, view.codexCount, view.harvests, (view.pet and view.pet ~= "" and ("    " .. view.pet)) or "")
 
 	hideLoading() -- first authoritative state arrived -> reveal the world
 	lastInventory = view.inventory or {}

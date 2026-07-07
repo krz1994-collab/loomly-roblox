@@ -39,6 +39,7 @@ export type PlayerState = {
 	achievements: { [string]: boolean }, -- earned achievement ids (block 14)
 	museum: { [string]: boolean }, -- donated inventory keys (block 14)
 	tutorialsSeen: { [string]: boolean }, -- tutorials already shown (block 2)
+	pets: { owned: { [string]: boolean }, equipped: string? }, -- adopted pets + the active one (content)
 }
 
 local SaveSchema = {}
@@ -93,6 +94,7 @@ function SaveSchema.serialize(state: PlayerState): any
 		achievements = deepCopy(state.achievements),
 		museum = deepCopy(state.museum),
 		tutorialsSeen = deepCopy(state.tutorialsSeen),
+		pets = deepCopy(state.pets),
 	}
 end
 
@@ -246,6 +248,16 @@ function SaveSchema.validate(candidate: any, template: PlayerState): PlayerState
 		for k, v in t.tutorialsSeen do
 			if type(k) == "string" and v == true then
 				out.tutorialsSeen[k] = true
+			end
+		end
+	end
+	-- pets: { owned = {[id]=true}, equipped = id? }
+	local pt: any = type(t.pets) == "table" and t.pets or {}
+	out.pets = { owned = {}, equipped = if type(pt.equipped) == "string" then pt.equipped else nil }
+	if type(pt.owned) == "table" then
+		for k, v in pt.owned do
+			if type(k) == "string" and v == true then
+				out.pets.owned[k] = true
 			end
 		end
 	end

@@ -69,6 +69,7 @@ export type PlayerState = {
 	achievements: { [string]: boolean }, -- earned achievements (block 14)
 	museum: { [string]: boolean }, -- donated inventory keys (block 14)
 	tutorialsSeen: { [string]: boolean }, -- tutorials already shown (block 2)
+	pets: { owned: { [string]: boolean }, equipped: string? }, -- adopted pets (content)
 }
 
 local PlayerData = {}
@@ -104,6 +105,7 @@ local function makeDefault(): PlayerState
 		achievements = {},
 		museum = {},
 		tutorialsSeen = {},
+		pets = { owned = {}, equipped = nil },
 	}
 end
 
