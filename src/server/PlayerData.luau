@@ -66,6 +66,8 @@ export type PlayerState = {
 	kitchen: { recipeId: string?, doneAt: number? }, -- cooking slot (block 9)
 	bees: { level: number, lastCollect: number }, -- beehive (block 9)
 	house: { tier: number, lastRent: number, decor: { [string]: number } }, -- house + rent (block 10)
+	achievements: { [string]: boolean }, -- earned achievements (block 14)
+	museum: { [string]: boolean }, -- donated inventory keys (block 14)
 }
 
 local PlayerData = {}
@@ -98,6 +100,8 @@ local function makeDefault(): PlayerState
 		kitchen = { recipeId = nil, doneAt = nil },
 		bees = { level = 0, lastCollect = 0 },
 		house = { tier = 0, lastRent = 0, decor = {} },
+		achievements = {},
+		museum = {},
 	}
 end
 

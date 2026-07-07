@@ -36,6 +36,8 @@ export type PlayerState = {
 	kitchen: { recipeId: string?, doneAt: number? }, -- single cooking slot (recipe cooking until doneAt)
 	bees: { level: number, lastCollect: number }, -- beehive -> honey over time
 	house: { tier: number, lastRent: number, decor: { [string]: number } }, -- house tier + passive rent + decor placed
+	achievements: { [string]: boolean }, -- earned achievement ids (block 14)
+	museum: { [string]: boolean }, -- donated inventory keys (block 14)
 }
 
 local SaveSchema = {}
@@ -87,6 +89,8 @@ function SaveSchema.serialize(state: PlayerState): any
 		kitchen = deepCopy(state.kitchen),
 		bees = deepCopy(state.bees),
 		house = deepCopy(state.house),
+		achievements = deepCopy(state.achievements),
+		museum = deepCopy(state.museum),
 	}
 end
 
@@ -214,6 +218,24 @@ function SaveSchema.validate(candidate: any, template: PlayerState): PlayerState
 		for k, n in ht.decor do
 			if type(k) == "string" and isNonNegNumber(n) and n > 0 then
 				out.house.decor[k] = math.floor(n)
+			end
+		end
+	end
+
+	-- achievements + museum: maps of string->true
+	out.achievements = {}
+	if type(t.achievements) == "table" then
+		for k, v in t.achievements do
+			if type(k) == "string" and v == true then
+				out.achievements[k] = true
+			end
+		end
+	end
+	out.museum = {}
+	if type(t.museum) == "table" then
+		for k, v in t.museum do
+			if type(k) == "string" and v == true then
+				out.museum[k] = true
 			end
 		end
 	end

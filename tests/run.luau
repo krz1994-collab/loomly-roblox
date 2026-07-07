@@ -38,6 +38,9 @@ local Recipes = require("../src/shared/data/Recipes")
 local Bees = require("../src/shared/data/Bees")
 local House = require("../src/shared/data/House")
 local SailRules = require("../src/shared/SailRules")
+local AchievementRules = require("../src/shared/AchievementRules")
+local Achievements = require("../src/shared/data/Achievements")
+local TradeRules = require("../src/shared/TradeRules")
 
 local passed, failed = 0, 0
 local function check(name: string, cond: boolean)
@@ -234,7 +237,7 @@ local function tmpl(): any
 	for _ = 1, 6 do
 		table.insert(plots, { seedId = nil, readyAt = nil })
 	end
-	return { coins = 20, lifetimeEarned = 0, harvests = 0, xp = 0, codex = {}, inventory = {}, plots = plots, rebirths = 0, daily = { day = 0, streak = 0 }, quests = { done = {}, active = {} }, unlocks = {}, upgrades = {}, treasuresFound = {}, orchard = {}, animals = {}, kitchen = { recipeId = nil, doneAt = nil }, bees = { level = 0, lastCollect = 0 }, house = { tier = 0, lastRent = 0, decor = {} } }
+	return { coins = 20, lifetimeEarned = 0, harvests = 0, xp = 0, codex = {}, inventory = {}, plots = plots, rebirths = 0, daily = { day = 0, streak = 0 }, quests = { done = {}, active = {} }, unlocks = {}, upgrades = {}, treasuresFound = {}, orchard = {}, animals = {}, kitchen = { recipeId = nil, doneAt = nil }, bees = { level = 0, lastCollect = 0 }, house = { tier = 0, lastRent = 0, decor = {} }, achievements = {}, museum = {} }
 end
 do
 	local st: any = {
@@ -255,6 +258,8 @@ do
 		kitchen = { recipeId = "pie", doneAt = 1700000500 },
 		bees = { level = 2, lastCollect = 1700000000 },
 		house = { tier = 3, lastRent = 1700000000, decor = { rug = 2, lamp = 1 } },
+		achievements = { first_harvest = true },
+		museum = { ["radish|normal"] = true },
 		plots = {
 			{ seedId = "radish", readyAt = 1700000000 },
 			{ seedId = nil, readyAt = nil },
@@ -700,6 +705,68 @@ do
 	check("can buy boat when affordable + none owned", (SailRules.canBuyBoat(noBoat)))
 	check("can't buy boat when already owned", not (SailRules.canBuyBoat(withBoat)))
 	check("can't buy boat when broke", not (SailRules.canBuyBoat({ unlocks = {}, coins = 10 })))
+end
+
+-- ---- AchievementRules (block 14) ----
+do
+	check("22 achievements defined", #Achievements.list == 22)
+	local stats = { harvests = 100, lifetimeEarned = 500, level = 12, codexCount = 3, rebirths = 0, treasures = 0, museumCount = 0 }
+	local newly = AchievementRules.newlyEarned(Achievements.list, stats, {})
+	-- expect first_harvest(1), harvest_100(100), level_10(10) earned; earn_1k(1000) not
+	local ids: { [string]: boolean } = {}
+	for _, a in newly do
+		ids[a.id] = true
+	end
+	check("first_harvest earned at 100 harvests", ids.first_harvest == true)
+	check("harvest_100 earned", ids.harvest_100 == true)
+	check("level_10 earned at level 12", ids.level_10 == true)
+	check("earn_100k NOT earned at 500", ids.earn_100k ~= true)
+	-- already-earned aren't re-reported
+	local newly2 = AchievementRules.newlyEarned(Achievements.list, stats, { first_harvest = true })
+	local seen = false
+	for _, a in newly2 do
+		if a.id == "first_harvest" then
+			seen = true
+		end
+	end
+	check("already-earned not re-reported", not seen)
+end
+
+-- ---- TradeRules: CONSERVATION (block 14, the release-blocker property) ----
+do
+	local invA = { ["radish|normal"] = 5, ["pumpkin|giant"] = 1 }
+	local invB = { ["carrot|normal"] = 3 }
+	local escA: { [string]: number } = {}
+	local escB: { [string]: number } = {}
+	local function grandTotal(): number
+		return TradeRules.total(invA) + TradeRules.total(invB) + TradeRules.total(escA) + TradeRules.total(escB)
+	end
+	local START = grandTotal()
+	eq("start total", START, 9)
+
+	-- can't escrow more than you hold
+	check("escrow rejects over-offer", not TradeRules.escrow(invA, escA, "radish|normal", 99))
+	check("escrow ok within holdings", TradeRules.escrow(invA, escA, "radish|normal", 3))
+	check("escrow moves out of inventory", invA["radish|normal"] == 2)
+	eq("conserved after escrow", grandTotal(), START)
+
+	-- B offers
+	TradeRules.escrow(invB, escB, "carrot|normal", 2)
+	eq("conserved after both escrow", grandTotal(), START)
+
+	-- refund A restores inventory
+	TradeRules.refund(invA, escA)
+	check("refund restored radishes", invA["radish|normal"] == 5)
+	check("refund cleared escrow", next(escA) == nil)
+	eq("conserved after refund", grandTotal(), START)
+
+	-- re-offer then settle: items swap owners, total unchanged, nothing duped/vanished
+	TradeRules.escrow(invA, escA, "pumpkin|giant", 1)
+	TradeRules.settle(invA, escA, invB, escB)
+	check("settle gave pumpkin to B", invB["pumpkin|giant"] == 1)
+	check("settle gave carrots to A", invA["carrot|normal"] == 2)
+	check("settle cleared escrows", next(escA) == nil and next(escB) == nil)
+	eq("CONSERVED after settle (no dupe/vanish)", grandTotal(), START)
 end
 
 print(string.format("\n%d passed, %d failed", passed, failed))

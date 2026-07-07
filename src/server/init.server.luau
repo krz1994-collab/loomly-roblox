@@ -25,6 +25,8 @@ local TreasureRules = require(ReplicatedStorage.Bloomly.TreasureRules)
 local EventRules = require(ReplicatedStorage.Bloomly.EventRules)
 local EventsData = require(ReplicatedStorage.Bloomly.data.Events)
 local SailRules = require(ReplicatedStorage.Bloomly.SailRules)
+local AchievementRules = require(ReplicatedStorage.Bloomly.AchievementRules)
+local Achievements = require(ReplicatedStorage.Bloomly.data.Achievements)
 
 local gatherRng = Random.new()
 local function gatherRand(): number
@@ -82,6 +84,35 @@ local function updateLeaderstats(player: Player, state: any)
 	end
 end
 
+local function countKeys(map: { [string]: any }): number
+	local n = 0
+	for _ in map do
+		n += 1
+	end
+	return n
+end
+
+-- Award any newly-earned achievements: mark them, pay the reward, toast the player. Pure decision in
+-- AchievementRules; this shell builds the stats + applies the effect.
+local function checkAchievements(player: Player, state: any)
+	local stats = {
+		harvests = state.harvests,
+		lifetimeEarned = state.lifetimeEarned,
+		level = Rules.levelForXp(state.xp),
+		codexCount = countKeys(state.codex),
+		rebirths = state.rebirths or 0,
+		treasures = countKeys(state.treasuresFound),
+		museumCount = countKeys(state.museum),
+	}
+	local newly = AchievementRules.newlyEarned(Achievements.list, stats, state.achievements)
+	for _, a in newly do
+		state.achievements[a.id] = true
+		state.coins += a.reward
+		state.lifetimeEarned += a.reward
+		Remotes.Notify:FireClient(player, "🏅 Achievement: " .. a.emoji .. " " .. a.name .. "! (+" .. a.reward .. "c)")
+	end
+end
+
 -- Send a player their authoritative view AND render their garden into the 3D world so EVERYONE sees
 -- it. The view is the single source of truth; the 3D crops are just another renderer of it.
 local function pushState(player: Player)
@@ -89,6 +120,7 @@ local function pushState(player: Player)
 	if not state then
 		return
 	end
+	checkAchievements(player, state) -- award milestones before snapshotting (reflects reward in this push)
 	local view: any = Farm.buildView(state, ownedPlotsFor(player))
 	local section = PlotClaim.sectionOf(player.UserId)
 	view.section = section -- so the client knows which section is its own
@@ -432,6 +464,32 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 			else
 				Remotes.Notify:FireClient(player, "You already found this treasure. Look for others! 🗺️")
 			end
+		end
+	elseif kind == "museum" then
+		-- Donate ONE of every inventory item type not yet in the museum; pay a flat reward each + a
+		-- collection badge. Encourages keeping one of everything rather than selling it all.
+		local REWARD = 60
+		local donated = 0
+		for key, qty in state.inventory do
+			if qty >= 1 and not state.museum[key] then
+				state.museum[key] = true
+				local left = qty - 1
+				if left > 0 then
+					state.inventory[key] = left
+				else
+					state.inventory[key] = nil
+				end
+				state.coins += REWARD
+				state.lifetimeEarned += REWARD
+				donated += 1
+			end
+		end
+		if donated > 0 then
+			Quest.report(player, "donate", nil, donated)
+			Remotes.Notify:FireClient(player, "🏛️ Donated " .. donated .. " new item(s)! (+" .. (donated * REWARD) .. "c)")
+			pushState(player)
+		else
+			Remotes.Notify:FireClient(player, "Nothing new to donate -- gather rarer items!")
 		end
 	elseif kind == "upgrade" then
 		-- VALIDATES: track exists, not maxed, affordable. Server debits + bumps the level (UpgradeRules).
