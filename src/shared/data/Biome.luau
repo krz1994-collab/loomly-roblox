@@ -22,7 +22,7 @@ export type Biome = {
 local Meadow: Biome = {
 	id = "meadow",
 	unlock = { type = "start" },
-	plantIds = { "radish", "sunflower", "strawberry", "pumpkin", "blueberry", "starbloom" },
+	plantIds = { "radish", "sunflower", "strawberry", "pumpkin", "blueberry", "starbloom", "moonberry", "crystalrose" },
 	fish = {},
 	bugs = {},
 	weatherEvents = {},

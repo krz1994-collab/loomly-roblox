@@ -15,6 +15,7 @@ local ProximityPromptService = game:GetService("ProximityPromptService")
 local Remotes = require(ReplicatedStorage.Bloomly.Remotes)
 local Config = require(ReplicatedStorage.Bloomly.data.Config)
 local PlotRules = require(ReplicatedStorage.Bloomly.PlotRules)
+local Rules = require(ReplicatedStorage.Bloomly.Rules)
 local WorldLayout = require(ReplicatedStorage.Bloomly.data.WorldLayout)
 local PlayerData = require(script.PlayerData)
 local Farm = require(script.Farm)
@@ -32,6 +33,36 @@ local function ownedPlotsFor(_player: Player): number
 	return Config.PLOT_COUNT
 end
 
+-- Competitive leaderboard: Coins + Level show on the player list (rywalizacja between players).
+local function setupLeaderstats(player: Player, state: any)
+	local ls = Instance.new("Folder")
+	ls.Name = "leaderstats"
+	local coins = Instance.new("IntValue")
+	coins.Name = "Coins"
+	coins.Value = math.floor(state.coins)
+	coins.Parent = ls
+	local lvl = Instance.new("IntValue")
+	lvl.Name = "Level"
+	lvl.Value = Rules.levelForXp(state.xp)
+	lvl.Parent = ls
+	ls.Parent = player
+end
+
+local function updateLeaderstats(player: Player, state: any)
+	local ls = player:FindFirstChild("leaderstats")
+	if not ls then
+		return
+	end
+	local coins = ls:FindFirstChild("Coins")
+	local lvl = ls:FindFirstChild("Level")
+	if coins then
+		(coins :: IntValue).Value = math.floor(state.coins)
+	end
+	if lvl then
+		(lvl :: IntValue).Value = Rules.levelForXp(state.xp)
+	end
+end
+
 -- Send a player their authoritative view AND render their garden into the 3D world so EVERYONE sees
 -- it. The view is the single source of truth; the 3D crops are just another renderer of it.
 local function pushState(player: Player)
@@ -44,6 +75,7 @@ local function pushState(player: Player)
 	view.section = section -- so the client knows which section is its own
 	view.selectedSeed = selectedSeed[player.UserId]
 	Remotes.StateUpdate:FireClient(player, view)
+	updateLeaderstats(player, state)
 	if section then
 		World.renderSection(section, player.Name, view)
 	end
@@ -71,8 +103,9 @@ end
 
 -- ---- lifecycle ------------------------------------------------------------------
 local function onPlayerAdded(player: Player)
-	PlayerData.load(player) -- loads authoritative state (DataStore in load())
+	local state = PlayerData.load(player) -- loads authoritative state (DataStore in load())
 	PlotClaim.claim(player) -- assign a free 300x300 plot for this session
+	setupLeaderstats(player, state) -- Coins + Level on the player list
 	selectedSeed[player.UserId] = "radish" -- sensible default so the first Plant prompt just works
 	pushState(player) -- renders the plot's crops + fills the client HUD
 	player.CharacterAdded:Connect(function()

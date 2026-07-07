@@ -156,9 +156,15 @@ function World.build()
 		local platform = mkPart("Grass", Vector3.new(WorldLayout.SECTION_SIZE, 1, WorldLayout.SECTION_SIZE), CFrame.new(c.x, 0.5, c.z), C_GRASS, plot, Enum.Material.Grass)
 		plot.PrimaryPart = platform
 
-		-- low fence around the plot (4 thin walls)
+		-- low fence around the plot, with a GATEWAY in the front so you can walk in/out
 		local fh, ft = 4, 0.6
-		mkPart("FenceN", Vector3.new(WorldLayout.SECTION_SIZE, fh, ft), CFrame.new(c.x, fh / 2 + 1, c.z - half), C_FENCE, plot)
+		local gap = 44 -- width of the front gateway
+		local segW = (WorldLayout.SECTION_SIZE - gap) / 2
+		local segX = (gap + segW) / 2 -- centre offset of each front fence segment
+		mkPart("FenceN1", Vector3.new(segW, fh, ft), CFrame.new(c.x - segX, fh / 2 + 1, c.z - half), C_FENCE, plot)
+		mkPart("FenceN2", Vector3.new(segW, fh, ft), CFrame.new(c.x + segX, fh / 2 + 1, c.z - half), C_FENCE, plot)
+		mkPart("GateL", Vector3.new(2, fh + 3, 2), CFrame.new(c.x - gap / 2, (fh + 3) / 2 + 1, c.z - half), Color3.fromRGB(150, 110, 70), plot)
+		mkPart("GateR", Vector3.new(2, fh + 3, 2), CFrame.new(c.x + gap / 2, (fh + 3) / 2 + 1, c.z - half), Color3.fromRGB(150, 110, 70), plot)
 		mkPart("FenceS", Vector3.new(WorldLayout.SECTION_SIZE, fh, ft), CFrame.new(c.x, fh / 2 + 1, c.z + half), C_FENCE, plot)
 		mkPart("FenceW", Vector3.new(ft, fh, WorldLayout.SECTION_SIZE), CFrame.new(c.x - half, fh / 2 + 1, c.z), C_FENCE, plot)
 		mkPart("FenceE", Vector3.new(ft, fh, WorldLayout.SECTION_SIZE), CFrame.new(c.x + half, fh / 2 + 1, c.z), C_FENCE, plot)

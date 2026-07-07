@@ -19,6 +19,7 @@ local Rules = require("../src/shared/Rules")
 local SaveSchema = require("../src/shared/SaveSchema")
 local WorldLayout = require("../src/shared/data/WorldLayout")
 local PlotRules = require("../src/shared/PlotRules")
+local Catalog = require("../src/shared/data/Catalog")
 
 local passed, failed = 0, 0
 local function check(name: string, cond: boolean)
@@ -323,6 +324,51 @@ check("full world -> no free section", PlotRules.pickFreeSection({ [1] = true, [
 check("owner can act on own section", PlotRules.canInteract(500, 500))
 check("stranger cannot act on your section", not PlotRules.canInteract(500, 999))
 check("unclaimed section is not interactable", not PlotRules.canInteract(nil, 500))
+
+-- ---- new plants + codex unlock ----
+do
+	local moon = Plants.get("moonberry") :: any
+	local crystal = Plants.get("crystalrose") :: any
+	check("8 plants in the meadow roster", #Plants.list == 8)
+	check("moonberry locked below 10000 earned", not Plants.isUnlocked(moon, { lifetimeEarned = 9999, codex = {} }, 24))
+	check("moonberry unlocks at 10000 earned", Plants.isUnlocked(moon, { lifetimeEarned = 10000, codex = {} }, 24))
+	local codex4 = { ["radish|normal"] = true, ["sunflower|golden"] = true, ["strawberry|normal"] = true, ["pumpkin|giant"] = true }
+	local codex5 = { ["radish|normal"] = true, ["sunflower|golden"] = true, ["strawberry|normal"] = true, ["pumpkin|giant"] = true, ["blueberry|normal"] = true }
+	check("crystalrose locked with 4 species discovered", not Plants.isUnlocked(crystal, { lifetimeEarned = 0, codex = codex4 }, 24))
+	check("crystalrose unlocks with 5 species discovered", Plants.isUnlocked(crystal, { lifetimeEarned = 0, codex = codex5 }, 24))
+end
+
+-- ---- Catalog: all ported content is well-formed ----
+do
+	eq("Fish count = 4", #Catalog.Fish, 4)
+	eq("Bugs count = 7", #Catalog.Bugs, 7)
+	eq("Ores count = 3", #Catalog.Ores, 3)
+	eq("Vehicles count = 4", #Catalog.Vehicles, 4)
+	-- sellables have a positive sell price; buyables have a positive cost; ids unique within a list
+	local sellableLists = { Catalog.Fish, Catalog.WinterFish, Catalog.Bugs, Catalog.Shells, Catalog.Ores }
+	local sellablesOk = true
+	for _, list in sellableLists do
+		local seen = {}
+		for _, row in list do
+			if type(row.id) ~= "string" or type(row.sell) ~= "number" or row.sell <= 0 or seen[row.id] then
+				sellablesOk = false
+			end
+			seen[row.id] = true
+		end
+	end
+	check("all sellables: unique id + positive sell", sellablesOk)
+	local buyableLists = { Catalog.Tools, Catalog.Pets, Catalog.Hats, Catalog.Backs, Catalog.Decor, Catalog.Vehicles, Catalog.House, Catalog.Furniture, Catalog.Passive }
+	local buyablesOk = true
+	for _, list in buyableLists do
+		for _, row in list do
+			if type(row.id) ~= "string" or type(row.cost) ~= "number" or row.cost <= 0 then
+				buyablesOk = false
+			end
+		end
+	end
+	check("all buyables: string id + positive cost", buyablesOk)
+	check("vehicles give a speed multiplier > 1", Catalog.Vehicles[1].speed > 1 and Catalog.Vehicles[4].speed > 1)
+end
 
 print(string.format("\n%d passed, %d failed", passed, failed))
 if failed > 0 then
