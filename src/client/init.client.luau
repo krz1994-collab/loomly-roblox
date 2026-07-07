@@ -8,8 +8,12 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local Remotes = require(ReplicatedStorage.Bloomly.Remotes)
+local MapData = require(ReplicatedStorage.Bloomly.data.MapData)
+local MapRules = require(ReplicatedStorage.Bloomly.MapRules)
+local WorldLayout = require(ReplicatedStorage.Bloomly.data.WorldLayout)
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -212,11 +216,13 @@ local function buildSeeds(view: any)
 end
 
 local lastInventory: { any } = {} -- most recent inventory snapshot (for the trade offer picker)
+local lastSection: number? = nil -- the player's own plot section (for the "your farm" map dot)
 
 local function render(view: any)
 	stats.Text = string.format("🪙 %d    Lv %d (%d xp)    📖 %d    🌾 %d", view.coins, view.level, view.xp, view.codexCount, view.harvests)
 
 	lastInventory = view.inventory or {}
+	lastSection = view.section or lastSection
 	local count, worth = 0, 0
 	for _, item in view.inventory do
 		count += item.qty
@@ -463,6 +469,117 @@ Remotes.TradeUpdate.OnClientEvent:Connect(function(data: any)
 	theirOffer.Text = (tostring(data.partner) .. "'S OFFER:\n") .. offerText(data.theirOffer)
 	confirmLbl.Text = "You: " .. (data.youConfirmed and "✅" or "⬜") .. "   Them: " .. (data.theyConfirmed and "✅" or "⬜") .. "   (offering resets confirms)"
 	rebuildInvRow()
+end)
+
+-- ================= MAP + MINIMAP (block 16) =================
+-- A corner minimap projects the real world (MapData landmarks) through MapRules; a "you" dot tracks
+-- your character live. The Map button opens a bigger full-map with island labels + your farm.
+local DOT = {
+	plaza = Color3.fromRGB(120, 200, 120),
+	harbor = Color3.fromRGB(120, 160, 220),
+	island = Color3.fromRGB(230, 200, 120),
+	you = Color3.fromRGB(255, 90, 90),
+	farm = Color3.fromRGB(120, 255, 160),
+}
+local landmarks = MapData.landmarks()
+
+-- Build a map panel (frame) of pixel size `sz`; returns the frame + a function to place a live "you" dot.
+local function buildMap(sz: number, withLabels: boolean): (Frame, Frame, Frame)
+	local frame = Instance.new("Frame")
+	frame.Size = UDim2.new(0, sz, 0, sz)
+	frame.BackgroundColor3 = Color3.fromRGB(30, 46, 60)
+	frame.BackgroundTransparency = 0.1
+	frame.BorderSizePixel = 0
+	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = frame
+	-- ocean ring hint
+	for _, lm in landmarks do
+		local p = MapRules.worldToMap(lm.x, lm.z, MapData.BOUNDS)
+		local dot = Instance.new("Frame")
+		local isIsle = lm.kind == "island"
+		dot.Size = UDim2.new(0, isIsle and 8 or 10, 0, isIsle and 8 or 10)
+		dot.Position = UDim2.new(p.u, -4, p.v, -4)
+		dot.BackgroundColor3 = DOT[lm.kind] or Color3.fromRGB(200, 200, 200)
+		dot.BorderSizePixel = 0
+		local dc = Instance.new("UICorner"); dc.CornerRadius = UDim.new(1, 0); dc.Parent = dot
+		dot.Parent = frame
+		if withLabels then
+			local lbl = Instance.new("TextLabel")
+			lbl.Size = UDim2.new(0, 90, 0, 14)
+			lbl.Position = UDim2.new(p.u, 6, p.v, -7)
+			lbl.BackgroundTransparency = 1
+			lbl.TextColor3 = Color3.fromRGB(235, 240, 230)
+			lbl.Font = Enum.Font.Gotham
+			lbl.TextSize = 11
+			lbl.TextXAlignment = Enum.TextXAlignment.Left
+			lbl.Text = (lm.kind == "island") and ((lm.island == 11) and "Enchanted Forest" or lm.name) or lm.name
+			lbl.Parent = frame
+		end
+	end
+	-- your-farm dot (position updated when we learn our section)
+	local farmDot = Instance.new("Frame")
+	farmDot.Size = UDim2.new(0, 9, 0, 9)
+	farmDot.BackgroundColor3 = DOT.farm
+	farmDot.BorderSizePixel = 0
+	farmDot.Visible = false
+	local fc = Instance.new("UICorner"); fc.CornerRadius = UDim.new(1, 0); fc.Parent = farmDot
+	farmDot.Parent = frame
+	-- you dot
+	local youDot = Instance.new("Frame")
+	youDot.Size = UDim2.new(0, 9, 0, 9)
+	youDot.BackgroundColor3 = DOT.you
+	youDot.BorderSizePixel = 0
+	local yc = Instance.new("UICorner"); yc.CornerRadius = UDim.new(1, 0); yc.Parent = youDot
+	youDot.Parent = frame
+	return frame, youDot, farmDot
+end
+
+local miniMap, miniYou, miniFarm = buildMap(150, false)
+miniMap.Position = UDim2.new(0, 12, 1, -162)
+miniMap.Parent = gui
+
+local fullMap, fullYou, fullFarm = buildMap(420, true)
+fullMap.Position = UDim2.new(0.5, -210, 0.5, -210)
+fullMap.Visible = false
+fullMap.Parent = gui
+local mapTitle = Instance.new("TextLabel")
+mapTitle.Size = UDim2.new(1, 0, 0, 22)
+mapTitle.Position = UDim2.new(0, 0, 0, -24)
+mapTitle.BackgroundTransparency = 1
+mapTitle.TextColor3 = Color3.fromRGB(240, 245, 230)
+mapTitle.Font = Enum.Font.GothamBold
+mapTitle.TextSize = 16
+mapTitle.Text = "🗺️ Bloomly World Map"
+mapTitle.Parent = fullMap
+
+local mapBtn = mkBtn(gui, "🗺️ Map", 80, Color3.fromRGB(90, 140, 90))
+mapBtn.Position = UDim2.new(1, -104, 0, 236)
+mapBtn.Activated:Connect(function()
+	fullMap.Visible = not fullMap.Visible
+end)
+
+-- place the "your farm" dots once we know our section
+local function updateFarmDots()
+	if not lastSection then
+		return
+	end
+	local c = WorldLayout.sectionCenter(lastSection)
+	local p = MapRules.worldToMap(c.x, c.z, MapData.BOUNDS)
+	for _, d in { miniFarm, fullFarm } do
+		d.Position = UDim2.new(p.u, -4, p.v, -4)
+		d.Visible = true
+	end
+end
+
+-- live "you" dot every frame from the character root
+RunService.Heartbeat:Connect(function()
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart")
+	if hrp then
+		local p = MapRules.worldToMap((hrp :: BasePart).Position.X, (hrp :: BasePart).Position.Z, MapData.BOUNDS)
+		miniYou.Position = UDim2.new(p.u, -4, p.v, -4)
+		fullYou.Position = UDim2.new(p.u, -4, p.v, -4)
+	end
+	updateFarmDots()
 end)
 
 local ok, view = pcall(function()

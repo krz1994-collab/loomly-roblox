@@ -43,6 +43,7 @@ local Achievements = require("../src/shared/data/Achievements")
 local TradeRules = require("../src/shared/TradeRules")
 local CommandRules = require("../src/shared/CommandRules")
 local Commands = require("../src/shared/data/Commands")
+local MapRules = require("../src/shared/MapRules")
 
 local passed, failed = 0, 0
 local function check(name: string, cond: boolean)
@@ -772,6 +773,30 @@ do
 	check("settle gave carrots to A", invA["carrot|normal"] == 2)
 	check("settle cleared escrows", next(escA) == nil and next(escB) == nil)
 	eq("CONSERVED after settle (no dupe/vanish)", grandTotal(), START)
+end
+
+-- ---- MapRules: world->map projection (block 16) ----
+do
+	local b = { minX = -100, maxX = 100, minZ = -100, maxZ = 100 }
+	local mid = MapRules.worldToMap(0, 0, b)
+	check("centre projects to 0.5,0.5", math.abs(mid.u - 0.5) < 1e-9 and math.abs(mid.v - 0.5) < 1e-9)
+	local c0 = MapRules.worldToMap(-100, -100, b)
+	check("min corner -> 0,0", c0.u == 0 and c0.v == 0)
+	local c1 = MapRules.worldToMap(100, 100, b)
+	check("max corner -> 1,1", c1.u == 1 and c1.v == 1)
+	local out = MapRules.worldToMap(9999, 9999, b)
+	check("out-of-bounds clamps to 1,1", out.u == 1 and out.v == 1)
+	-- every island projects inside the unit square with map-scale bounds
+	local B = { minX = -6000, maxX = 6000, minZ = 2000 - 6000, maxZ = 2000 + 6000 }
+	local allInside = true
+	for i = 1, WorldLayout.ISLAND_COUNT do
+		local isl = WorldLayout.islandCenter(i)
+		local p = MapRules.worldToMap(isl.x, isl.z, B)
+		if p.u < 0 or p.u > 1 or p.v < 0 or p.v > 1 then
+			allInside = false
+		end
+	end
+	check("all 11 islands project inside the map", allInside)
 end
 
 -- ---- CommandRules (block 16) ----
