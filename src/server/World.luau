@@ -7,6 +7,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Bloomly.data.Config)
 local WorldLayout = require(ReplicatedStorage.Bloomly.data.WorldLayout)
+local Catalog = require(ReplicatedStorage.Bloomly.data.Catalog)
 
 local World = {}
 
@@ -139,6 +140,15 @@ function World.build()
 		mkBillboard(seeds, 8, 1.6, 7).Text = "🌱 Seeds (use bar below)"
 		local tools = mkPart("ToolShop", Vector3.new(6, 10, 6), CFrame.new(0, 5, WorldLayout.PLAZA_Z + 40), Color3.fromRGB(120, 130, 160), rootF)
 		mkBillboard(tools, 8, 1.6, 7).Text = "🛠️ Tools (soon)"
+	end
+	do -- garage: buy a vehicle to move faster across the big map
+		for idx, veh in Catalog.Vehicles do
+			local sx = (idx - (#Catalog.Vehicles + 1) / 2) * 18
+			local stand = mkPart("Vehicle_" .. veh.id, Vector3.new(9, 4, 5), CFrame.new(sx, 2.5, WorldLayout.PLAZA_Z - 48), Color3.fromRGB(70, 90, 140), rootF)
+			local pr = mkPrompt(stand, "Buy " .. veh.name .. " (" .. veh.cost .. "c)", "buyvehicle")
+			pr:SetAttribute("vehicleId", veh.id)
+			mkBillboard(stand, 6, 1.6, 4).Text = veh.emoji .. " " .. veh.name
+		end
 	end
 	mkLamppost(-WorldLayout.PLAZA_RADIUS, WorldLayout.PLAZA_Z, rootF)
 	mkLamppost(WorldLayout.PLAZA_RADIUS, WorldLayout.PLAZA_Z, rootF)

@@ -54,6 +54,7 @@ export type PlayerState = {
 	codex: { [string]: boolean }, -- discovered "plantId|mutationId" combos -> true (collection)
 	plots: { Plot }, -- 1..Config.PLOT_COUNT
 	inventory: { [string]: number }, -- key = plantId|mutationId  ->  quantity
+	vehicle: string?, -- owned vehicle id (nil = on foot)
 }
 
 local PlayerData = {}

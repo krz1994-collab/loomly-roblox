@@ -23,6 +23,7 @@ export type PlayerState = {
 	codex: { [string]: boolean },
 	plots: { Plot },
 	inventory: { [string]: number },
+	vehicle: string?, -- owned vehicle id (nil = on foot); gives a walkspeed boost
 }
 
 local SaveSchema = {}
@@ -62,6 +63,7 @@ function SaveSchema.serialize(state: PlayerState): any
 		codex = deepCopy(state.codex),
 		plots = deepCopy(state.plots),
 		inventory = deepCopy(state.inventory),
+		vehicle = state.vehicle,
 	}
 end
 
@@ -91,6 +93,7 @@ function SaveSchema.validate(candidate: any, template: PlayerState): PlayerState
 	out.lifetimeEarned = isNonNegNumber(t.lifetimeEarned) and t.lifetimeEarned or template.lifetimeEarned
 	out.harvests = isNonNegNumber(t.harvests) and t.harvests or template.harvests
 	out.xp = isNonNegNumber(t.xp) and t.xp or template.xp
+	out.vehicle = if type(t.vehicle) == "string" then t.vehicle else nil
 
 	-- codex: map of string->true
 	out.codex = {}

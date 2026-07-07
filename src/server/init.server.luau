@@ -17,6 +17,7 @@ local Config = require(ReplicatedStorage.Bloomly.data.Config)
 local PlotRules = require(ReplicatedStorage.Bloomly.PlotRules)
 local Rules = require(ReplicatedStorage.Bloomly.Rules)
 local WorldLayout = require(ReplicatedStorage.Bloomly.data.WorldLayout)
+local Catalog = require(ReplicatedStorage.Bloomly.data.Catalog)
 local PlayerData = require(script.PlayerData)
 local Farm = require(script.Farm)
 local PlotClaim = require(script.PlotClaim)
@@ -101,6 +102,34 @@ local function teleportToYard(player: Player)
 	;(hrp :: BasePart).CFrame = CFrame.new(target)
 end
 
+local BASE_WALKSPEED = 16
+local function vehicleById(id: string?): any
+	if not id then
+		return nil
+	end
+	for _, v in Catalog.Vehicles do
+		if v.id == id then
+			return v
+		end
+	end
+	return nil
+end
+
+-- Apply the owned vehicle's speed boost to the character (huge map => vehicles matter).
+local function applyVehicleSpeed(player: Player)
+	local state = PlayerData.get(player)
+	local char = player.Character
+	if not state or not char then
+		return
+	end
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	if not hum then
+		return
+	end
+	local veh = vehicleById(state.vehicle)
+	hum.WalkSpeed = BASE_WALKSPEED * (veh and veh.speed or 1)
+end
+
 -- ---- lifecycle ------------------------------------------------------------------
 local function onPlayerAdded(player: Player)
 	local state = PlayerData.load(player) -- loads authoritative state (DataStore in load())
@@ -111,9 +140,11 @@ local function onPlayerAdded(player: Player)
 	player.CharacterAdded:Connect(function()
 		task.wait(0.4) -- let the character finish loading before we move it
 		teleportToYard(player)
+		applyVehicleSpeed(player)
 	end)
 	if player.Character then
 		teleportToYard(player)
+		applyVehicleSpeed(player)
 	end
 end
 
@@ -236,6 +267,16 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 			changed = Farm.harvest(state, plotIndex)
 		end
 		if changed then
+			pushState(player)
+		end
+	elseif kind == "buyvehicle" then
+		-- VALIDATES: vehicle exists, not already owned, and you can afford it. Server debits + applies.
+		local vid = prompt:GetAttribute("vehicleId")
+		local veh = if type(vid) == "string" then vehicleById(vid) else nil
+		if veh and state.vehicle ~= vid and state.coins >= veh.cost then
+			state.coins -= veh.cost
+			state.vehicle = vid
+			applyVehicleSpeed(player)
 			pushState(player)
 		end
 	end
