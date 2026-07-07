@@ -15,6 +15,7 @@ local ProximityPromptService = game:GetService("ProximityPromptService")
 local Remotes = require(ReplicatedStorage.Bloomly.Remotes)
 local Config = require(ReplicatedStorage.Bloomly.data.Config)
 local PlotRules = require(ReplicatedStorage.Bloomly.PlotRules)
+local WorldLayout = require(ReplicatedStorage.Bloomly.data.WorldLayout)
 local PlayerData = require(script.PlayerData)
 local Farm = require(script.Farm)
 local PlotClaim = require(script.PlotClaim)
@@ -48,12 +49,39 @@ local function pushState(player: Player)
 	end
 end
 
+-- Put the player physically ON their claimed plot: with 100 plots they shouldn't have to search for
+-- theirs, and the Plant/Harvest prompts only work on your own plot -- so we land you right on it.
+local function teleportToYard(player: Player)
+	local section = PlotClaim.sectionOf(player.UserId)
+	local char = player.Character
+	if not section or not char then
+		return
+	end
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp then
+		return
+	end
+	local c = WorldLayout.sectionCenter(section)
+	local target = Vector3.new(c.x, 6, c.z - WorldLayout.SECTION_SIZE / 2 + 24) -- just inside the entrance
+	pcall(function()
+		player:RequestStreamAroundAsync(target) -- stream the plot in before we land there (map is huge)
+	end)
+	;(hrp :: BasePart).CFrame = CFrame.new(target)
+end
+
 -- ---- lifecycle ------------------------------------------------------------------
 local function onPlayerAdded(player: Player)
 	PlayerData.load(player) -- loads authoritative state (DataStore in load())
-	PlotClaim.claim(player) -- assign a free farm section for this session
+	PlotClaim.claim(player) -- assign a free 300x300 plot for this session
 	selectedSeed[player.UserId] = "radish" -- sensible default so the first Plant prompt just works
-	pushState(player) -- renders the section's crops + fills the client HUD
+	pushState(player) -- renders the plot's crops + fills the client HUD
+	player.CharacterAdded:Connect(function()
+		task.wait(0.4) -- let the character finish loading before we move it
+		teleportToYard(player)
+	end)
+	if player.Character then
+		teleportToYard(player)
+	end
 end
 
 Players.PlayerAdded:Connect(onPlayerAdded)

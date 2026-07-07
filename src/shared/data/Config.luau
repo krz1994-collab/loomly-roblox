@@ -11,8 +11,9 @@ local Config = {
 	-- The web game lets you BUY plots (PLOT_COSTS); the slice grants a fixed set so
 	-- we can prove the plant/grow/harvest/sell loop without a plot-shop.
 	-- NOTE: this doubles as "owned plot count" for unlock rules of type `plot`
-	-- (see Plants.isUnlocked). 6 plots => plant unlocks gated at plot>=4 / plot>=6 open once you own them.
-	PLOT_COUNT = 6,
+	-- (see Plants.isUnlocked). The plot shop (L4) will make this per-player + buyable up to ~18
+	-- (matching the web game). For now every player gets a generous starting farm.
+	PLOT_COUNT = 12,
 
 	-- Server pushes each player's farm state to their client on this cadence so the
 	-- "growing / ready" readout and countdown stay live. A production build would push
@@ -26,12 +27,13 @@ local Config = {
 
 	-- ---- Multiplayer (shared-world model) ----
 	-- Max players per server instance. MUST also be set in Studio: Game Settings -> Places ->
-	-- Server Size = 50. This mirror is the value the world-builder reads.
-	MAX_PLAYERS = 50,
+	-- Server Size. This mirror is the value the world-builder reads. (100 is demanding -> requires
+	-- StreamingEnabled + lean state push; dial back if it doesn't perform.)
+	MAX_PLAYERS = 100,
 
-	-- The shared world holds this many numbered farm sections. One per max player so nobody is
-	-- ever refused a farm on join. Each section renders a player's persisted `state.plots`.
-	PLOT_SECTIONS = 50,
+	-- The shared world holds this many numbered 300x300 farm plots. One per max player so nobody is
+	-- ever refused a plot on join. Each renders a player's persisted `state.plots`.
+	PLOT_SECTIONS = 100,
 
 	-- ---- Persistence (DataStore) ----
 	-- Save every player on this cadence (seconds). NEVER save per-action (blows the request budget

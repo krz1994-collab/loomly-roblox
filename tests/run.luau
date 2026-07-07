@@ -35,7 +35,7 @@ end
 
 -- ---- Config: ported starting values ----
 eq("START_COINS is 20 (ported from economy.js)", Config.START_COINS, 20)
-eq("PLOT_COUNT is 6", Config.PLOT_COUNT, 6)
+eq("PLOT_COUNT is 12", Config.PLOT_COUNT, 12)
 
 -- ---- Plant unlock gates (the real Plants.isUnlocked) ----
 local radish = Plants.get("radish") :: any
@@ -267,8 +267,9 @@ end
 
 -- ---- WorldLayout: procedural world geometry (pure -> the rare 3D bit we CAN test) ----
 do
-	local N = 50
-	-- no two of the 50 section centres are closer than one section's size (=> platforms never overlap)
+	local N = 100
+	local half = WorldLayout.SECTION_SIZE / 2
+	-- no two of the 100 plot centres are closer than one plot's size (=> 300x300 plots never overlap)
 	local minDist = math.huge
 	local centers = {}
 	for i = 1, N do
@@ -284,16 +285,14 @@ do
 			end
 		end
 	end
-	check(string.format("50 sections never overlap (min gap %.0f >= size %.0f)", minDist, WorldLayout.SECTION_SIZE), minDist >= WorldLayout.SECTION_SIZE)
+	check(string.format("100 plots never overlap (min gap %.0f >= size %.0f)", minDist, WorldLayout.SECTION_SIZE), minDist >= WorldLayout.SECTION_SIZE)
 
-	-- every plot pad sits fully inside its section
-	local half = WorldLayout.SECTION_SIZE / 2
+	-- every one of the 12 crop pads sits fully inside its 300x300 plot, at a distinct position
 	local padHalf = WorldLayout.PAD_SIZE / 2
-	local allInside = true
+	local allInside, distinct = true, true
 	local seen = {}
-	local distinct = true
-	for p = 1, 6 do
-		local o = WorldLayout.plotPadOffset(p, 6)
+	for p = 1, 12 do
+		local o = WorldLayout.plotPadOffset(p, 12)
 		if math.abs(o.x) + padHalf > half or math.abs(o.z) + padHalf > half then
 			allInside = false
 		end
@@ -303,8 +302,18 @@ do
 		end
 		seen[kk] = true
 	end
-	check("all 6 plot pads fit inside their section", allInside)
-	check("plot pads are at distinct positions", distinct)
+	check("all 12 crop pads fit inside the plot", allInside)
+	check("crop pads are at distinct positions", distinct)
+
+	-- every reserved expansion zone sits inside the plot
+	local zonesInside = true
+	for _, name in WorldLayout.zoneNames() do
+		local o = WorldLayout.zoneOffset(name)
+		if not o or math.abs(o.x) > half or math.abs(o.z) > half then
+			zonesInside = false
+		end
+	end
+	check("house/pen/utility/orchard zones fit inside the plot", zonesInside)
 end
 
 -- ---- PlotRules: claim + ownership (pure) ----

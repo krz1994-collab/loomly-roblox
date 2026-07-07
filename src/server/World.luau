@@ -1,11 +1,8 @@
 --!strict
--- World: builds the shared 3D world at runtime with Instance.new (I can't place parts by hand in
--- Studio from the VPS, so the world is generated from code + the pure WorldLayout geometry).
--- Also renders each claimed section's crops so ALL players see each other's farms (server-side =
--- replicated = flexing works). Every interactable carries attributes the server reads on trigger.
---
--- This whole module is Studio-verified only. It is kept data-driven (positions come from the pure,
--- unit-tested WorldLayout) and logs instance counts so a blind build is easy to sanity-check.
+-- World: builds the shared 3D world at runtime (Instance.new) from the pure, unit-tested
+-- WorldLayout geometry. 100 personal 300x300 plots spread in a grid (grey ground between them =
+-- roads/paths), a central plaza with shops, lampposts, and scattered Market NPCs. Streaming is on
+-- because the map is ~3600 studs wide. Studio-verified only; kept data-driven + logs instance counts.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Bloomly.data.Config)
@@ -13,20 +10,34 @@ local WorldLayout = require(ReplicatedStorage.Bloomly.data.WorldLayout)
 
 local World = {}
 
--- section i -> { platform, ownerLabel, pads = { j -> { pad, prompt, cropLabel } } }
+-- section i -> { ownerLabel, pads = { j -> { pad, prompt, cropLabel } } }
 local sections: { [number]: any } = {}
 local root: Folder? = nil
 
 -- ---- colors ----
-local C_GROUND = Color3.fromRGB(96, 148, 74)
-local C_HUB = Color3.fromRGB(150, 140, 120)
-local C_GRASS = Color3.fromRGB(110, 165, 88)
-local C_EMPTY = Color3.fromRGB(120, 90, 60) -- tilled soil
-local C_GROWING = Color3.fromRGB(90, 140, 70)
+local C_ROAD = Color3.fromRGB(88, 92, 96) -- ground = roads/paths (grey); plots sit on top in green
+local C_GRASS = Color3.fromRGB(104, 168, 84)
+local C_FENCE = Color3.fromRGB(190, 175, 150)
+local C_PLAZA = Color3.fromRGB(150, 140, 120)
+local C_EMPTY = Color3.fromRGB(120, 90, 60)
+local C_GROWING = Color3.fromRGB(92, 148, 74)
 local C_READY = Color3.fromRGB(120, 215, 90)
-local C_MARKET = Color3.fromRGB(210, 170, 60)
+local C_MARKET = Color3.fromRGB(214, 172, 60)
+local C_LAMP = Color3.fromRGB(255, 236, 150)
+local ZONE_COLOR: { [string]: Color3 } = {
+	house = Color3.fromRGB(180, 120, 90),
+	pen = Color3.fromRGB(150, 130, 100),
+	utility = Color3.fromRGB(120, 120, 130),
+	orchard = Color3.fromRGB(110, 150, 90),
+}
+local ZONE_TEXT: { [string]: string } = {
+	house = "🏠 House (soon)",
+	pen = "🐄 Pen (soon)",
+	utility = "🏚️ Sheds (soon)",
+	orchard = "🌳 Orchard (soon)",
+}
 
-local function mkPart(name: string, size: Vector3, cf: CFrame, color: Color3, parent: Instance): Part
+local function mkPart(name: string, size: Vector3, cf: CFrame, color: Color3, parent: Instance, material: Enum.Material?): Part
 	local p = Instance.new("Part")
 	p.Name = name
 	p.Size = size
@@ -35,19 +46,17 @@ local function mkPart(name: string, size: Vector3, cf: CFrame, color: Color3, pa
 	p.Anchored = true
 	p.TopSurface = Enum.SurfaceType.Smooth
 	p.BottomSurface = Enum.SurfaceType.Smooth
-	p.Material = Enum.Material.SmoothPlastic
+	p.Material = material or Enum.Material.SmoothPlastic
 	p.Parent = parent
 	return p
 end
 
--- A floating text label over a part (owner name, crop emoji + status).
-local function mkBillboard(adornee: BasePart, size: UDim2, studsOffsetY: number): TextLabel
+local function mkBillboard(adornee: BasePart, w: number, h: number, offsetY: number): TextLabel
 	local bb = Instance.new("BillboardGui")
 	bb.Adornee = adornee
-	bb.Size = size
-	bb.StudsOffset = Vector3.new(0, studsOffsetY, 0)
-	bb.AlwaysOnTop = false
-	bb.MaxDistance = 90
+	bb.Size = UDim2.fromScale(w, h)
+	bb.StudsOffset = Vector3.new(0, offsetY, 0)
+	bb.MaxDistance = 220
 	bb.Parent = adornee
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.fromScale(1, 1)
@@ -61,12 +70,39 @@ local function mkBillboard(adornee: BasePart, size: UDim2, studsOffsetY: number)
 	return label
 end
 
--- Build the whole static world once. Safe to call a second time (rebuilds cleanly).
+local function mkPrompt(parent: BasePart, action: string, kind: string): ProximityPrompt
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = action
+	prompt.HoldDuration = 0
+	prompt.MaxActivationDistance = 14
+	prompt.RequiresLineOfSight = false
+	prompt:SetAttribute("kind", kind)
+	prompt.Parent = parent
+	return prompt
+end
+
+local function mkLamppost(x: number, z: number, parent: Instance)
+	mkPart("LampPost", Vector3.new(1.2, 22, 1.2), CFrame.new(x, 11, z), Color3.fromRGB(60, 55, 50), parent)
+	local head = mkPart("LampHead", Vector3.new(3, 3, 3), CFrame.new(x, 22.5, z), C_LAMP, parent, Enum.Material.Neon)
+	head.Shape = Enum.PartType.Ball
+end
+
+local function mkMarket(x: number, z: number, parent: Instance, label: string)
+	local m = mkPart("MarketNPC", Vector3.new(6, 10, 6), CFrame.new(x, 5, z), C_MARKET, parent)
+	mkPrompt(m, "Sell all", "sell")
+	mkBillboard(m, 8, 1.6, 7).Text = label
+end
+
+-- Build the whole static world once.
 function World.build()
+	pcall(function()
+		workspace.StreamingEnabled = true -- map is ~3600 studs; clients stream only nearby content
+		workspace.StreamingTargetRadius = 800
+	end)
+
 	if root then
 		root:Destroy()
 	end
-	-- remove the default Baseplate-template ground + spawn so our world is the only one
 	for _, v in workspace:GetChildren() do
 		if v:IsA("BasePart") and (v.Name == "Baseplate" or v:IsA("SpawnLocation")) then
 			v:Destroy()
@@ -77,81 +113,104 @@ function World.build()
 	root.Parent = workspace
 	sections = {}
 
-	-- ground big enough to cover the hub + the whole section grid
-	local gridDepth = math.ceil(Config.PLOT_SECTIONS / WorldLayout.SECTION_COLS) * WorldLayout.SECTION_SPACING
-	mkPart("Ground", Vector3.new(700, 2, gridDepth + 240), CFrame.new(0, -1, (WorldLayout.GRID_START_Z + gridDepth) / 2), C_GROUND, root)
+	local rootF = root :: Folder
+	local cols = WorldLayout.SECTION_COLS
+	local rows = math.ceil(Config.PLOT_SECTIONS / cols)
+	local gridW = cols * WorldLayout.SECTION_SPACING
+	local gridD = rows * WorldLayout.SECTION_SPACING
 
-	-- hub platform (a simple flat square) + a spawn point (avatars appear in the hub, not on a plot)
-	mkPart("Hub", Vector3.new(WorldLayout.HUB_RADIUS * 2, 1, WorldLayout.HUB_RADIUS * 2), CFrame.new(0, 0.5, 0), C_HUB, root)
+	-- ground = grey road/path base under everything (green plots sit on top -> gaps look like streets)
+	mkPart("Ground", Vector3.new(gridW + 600, 2, gridD + 1000), CFrame.new(0, -1, (WorldLayout.GRID_START_Z + gridD) / 2 - 200), C_ROAD, rootF)
+
+	-- central plaza (spawn + main shops)
+	mkPart("Plaza", Vector3.new(WorldLayout.PLAZA_RADIUS * 2, 1, WorldLayout.PLAZA_RADIUS * 2), CFrame.new(0, 0.5, WorldLayout.PLAZA_Z), C_PLAZA, rootF)
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Name = "HubSpawn"
-	spawn.Size = Vector3.new(8, 1, 8)
-	spawn.CFrame = CFrame.new(0, 1.5, 0)
+	spawn.Size = Vector3.new(10, 1, 10)
+	spawn.CFrame = CFrame.new(0, 1.5, WorldLayout.PLAZA_Z)
 	spawn.Anchored = true
 	spawn.Neutral = true
 	spawn.Duration = 0
-	spawn.Color = C_HUB
-	spawn.Parent = root
+	spawn.Color = C_PLAZA
+	spawn.Parent = rootF
+	mkMarket(-30, WorldLayout.PLAZA_Z, rootF, "🧺 Market — sell")
+	do -- placeholder shop signs (systems come in later layers)
+		local seeds = mkPart("SeedShop", Vector3.new(6, 10, 6), CFrame.new(30, 5, WorldLayout.PLAZA_Z), Color3.fromRGB(90, 170, 90), rootF)
+		mkBillboard(seeds, 8, 1.6, 7).Text = "🌱 Seeds (use bar below)"
+		local tools = mkPart("ToolShop", Vector3.new(6, 10, 6), CFrame.new(0, 5, WorldLayout.PLAZA_Z + 40), Color3.fromRGB(120, 130, 160), rootF)
+		mkBillboard(tools, 8, 1.6, 7).Text = "🛠️ Tools (soon)"
+	end
+	mkLamppost(-WorldLayout.PLAZA_RADIUS, WorldLayout.PLAZA_Z, rootF)
+	mkLamppost(WorldLayout.PLAZA_RADIUS, WorldLayout.PLAZA_Z, rootF)
 
-	-- Market NPC (a coloured pillar) with a "Sell all" prompt in the hub
-	local market = mkPart("MarketNPC", Vector3.new(4, 8, 4), CFrame.new(0, 4, -WorldLayout.HUB_RADIUS + 6), C_MARKET, root)
-	local sellPrompt = Instance.new("ProximityPrompt")
-	sellPrompt.ActionText = "Sell all"
-	sellPrompt.ObjectText = "Market"
-	sellPrompt.HoldDuration = 0
-	sellPrompt.MaxActivationDistance = 12
-	sellPrompt:SetAttribute("kind", "sell")
-	sellPrompt.Parent = market
-	local mLabel = mkBillboard(market, UDim2.fromScale(6, 1.4), 6)
-	mLabel.Text = "🧺 Market — sell here"
-
-	-- the N farm sections
-	local padY = 1.0
+	-- the 100 personal plots
+	local half = WorldLayout.SECTION_SIZE / 2
+	local padY = 1.1
 	for i = 1, Config.PLOT_SECTIONS do
 		local c = WorldLayout.sectionCenter(i)
-		local secModel = Instance.new("Model")
-		secModel.Name = "Section" .. i
-		secModel.Parent = root
+		local plot = Instance.new("Model")
+		plot.Name = "Plot" .. i
+		plot.Parent = rootF
 
-		local platform = mkPart("Grass", Vector3.new(WorldLayout.SECTION_SIZE, 1, WorldLayout.SECTION_SIZE), CFrame.new(c.x, 0.5, c.z), C_GRASS, secModel)
-		secModel.PrimaryPart = platform
-		local ownerLabel = mkBillboard(platform, UDim2.fromScale(8, 1.6), WorldLayout.SECTION_SIZE / 2 + 4)
-		ownerLabel.Text = "· free ·"
-		ownerLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+		-- raised green platform (=> the grey road base shows in the gaps)
+		local platform = mkPart("Grass", Vector3.new(WorldLayout.SECTION_SIZE, 1, WorldLayout.SECTION_SIZE), CFrame.new(c.x, 0.5, c.z), C_GRASS, plot, Enum.Material.Grass)
+		plot.PrimaryPart = platform
 
+		-- low fence around the plot (4 thin walls)
+		local fh, ft = 4, 0.6
+		mkPart("FenceN", Vector3.new(WorldLayout.SECTION_SIZE, fh, ft), CFrame.new(c.x, fh / 2 + 1, c.z - half), C_FENCE, plot)
+		mkPart("FenceS", Vector3.new(WorldLayout.SECTION_SIZE, fh, ft), CFrame.new(c.x, fh / 2 + 1, c.z + half), C_FENCE, plot)
+		mkPart("FenceW", Vector3.new(ft, fh, WorldLayout.SECTION_SIZE), CFrame.new(c.x - half, fh / 2 + 1, c.z), C_FENCE, plot)
+		mkPart("FenceE", Vector3.new(ft, fh, WorldLayout.SECTION_SIZE), CFrame.new(c.x + half, fh / 2 + 1, c.z), C_FENCE, plot)
+
+		-- owner sign + name at the front (entrance) edge
+		local post = mkPart("OwnerPost", Vector3.new(2, 10, 2), CFrame.new(c.x, 5, c.z - half - 4), Color3.fromRGB(120, 95, 70), plot)
+		local ownerLabel = mkBillboard(post, 12, 2.2, 7)
+		ownerLabel.Text = "· free plot ·"
+		ownerLabel.TextColor3 = Color3.fromRGB(225, 225, 225)
+
+		-- reserved expansion zones (house / pen / utility / orchard) as labelled markers
+		for _, name in WorldLayout.zoneNames() do
+			local o = WorldLayout.zoneOffset(name)
+			if o then
+				local zp = mkPart("Zone_" .. name, Vector3.new(70, 1.2, 70), CFrame.new(c.x + o.x, 1.1, c.z + o.z), ZONE_COLOR[name] or C_GRASS, plot)
+				mkBillboard(zp, 10, 1.8, 6).Text = ZONE_TEXT[name] or name
+			end
+		end
+
+		-- 12 crop pads with Plant/Harvest prompts (enabled only for the owner while claimed)
 		local pads: { [number]: any } = {}
 		for j = 1, Config.PLOT_COUNT do
 			local o = WorldLayout.plotPadOffset(j, Config.PLOT_COUNT)
-			local pad = mkPart("Pad" .. j, Vector3.new(WorldLayout.PAD_SIZE, 1, WorldLayout.PAD_SIZE), CFrame.new(c.x + o.x, padY, c.z + o.z), C_EMPTY, secModel)
-			local prompt = Instance.new("ProximityPrompt")
-			prompt.ActionText = "Plant"
-			prompt.ObjectText = ""
-			prompt.HoldDuration = 0
-			prompt.MaxActivationDistance = 10
-			prompt.Enabled = false -- enabled only for the section's owner while claimed (set in render)
-			prompt:SetAttribute("kind", "plot")
+			local pad = mkPart("Pad" .. j, Vector3.new(WorldLayout.PAD_SIZE, 1, WorldLayout.PAD_SIZE), CFrame.new(c.x + o.x, padY, c.z + o.z), C_EMPTY, plot)
+			local prompt = mkPrompt(pad, "Plant", "plot")
+			prompt.Enabled = false
 			prompt:SetAttribute("section", i)
 			prompt:SetAttribute("plotIndex", j)
-			prompt.Parent = pad
-			local cropLabel = mkBillboard(pad, UDim2.fromScale(3, 2), 3)
-			pads[j] = { pad = pad, prompt = prompt, cropLabel = cropLabel }
+			pads[j] = { pad = pad, prompt = prompt, cropLabel = mkBillboard(pad, 4, 2.4, 4) }
 		end
 
-		sections[i] = { platform = platform, ownerLabel = ownerLabel, pads = pads }
+		-- a lamppost at the plot's front-left corner (lines the streets)
+		mkLamppost(c.x - half - 6, c.z - half - 6, plot)
+
+		-- a scattered Market every 5th plot so selling is handy across the big map
+		if i % 5 == 0 then
+			mkMarket(c.x + half + 20, c.z, rootF, "🧺 Market")
+		end
+
+		sections[i] = { ownerLabel = ownerLabel, pads = pads }
 	end
 
-	local instanceCount = #root:GetDescendants()
-	print("[Bloomly] world built: " .. Config.PLOT_SECTIONS .. " sections, " .. (Config.PLOT_SECTIONS * Config.PLOT_COUNT) .. " pads, " .. instanceCount .. " instances")
+	print(string.format("[Bloomly] world built: %d plots (300x300), %d pads, %d instances", Config.PLOT_SECTIONS, Config.PLOT_SECTIONS * Config.PLOT_COUNT, #rootF:GetDescendants()))
 end
 
--- Render a player's garden onto their claimed section (called by the server so everyone sees it).
--- `view` is Farm.buildView output (view.plots[j] = {seedId, emoji, ready, secondsLeft}).
+-- Render a player's garden onto their plot (server-side => everyone sees it).
 function World.renderSection(section: number, ownerName: string, view: any)
 	local s = sections[section]
 	if not s then
 		return
 	end
-	s.ownerLabel.Text = "🌱 " .. ownerName
+	s.ownerLabel.Text = "🌱 " .. ownerName .. "'s farm"
 	s.ownerLabel.TextColor3 = Color3.fromRGB(180, 240, 140)
 	for j = 1, Config.PLOT_COUNT do
 		local pad = s.pads[j]
@@ -169,19 +228,19 @@ function World.renderSection(section: number, ownerName: string, view: any)
 		else
 			pad.pad.Color = C_GROWING
 			pad.cropLabel.Text = p.emoji .. "\n🌱 " .. p.secondsLeft .. "s"
-			pad.prompt.Enabled = false -- nothing to do while growing
+			pad.prompt.Enabled = false
 		end
 	end
 end
 
--- Reset a section to unclaimed when its owner leaves.
+-- Reset a plot to unclaimed when its owner leaves.
 function World.clearSection(section: number)
 	local s = sections[section]
 	if not s then
 		return
 	end
-	s.ownerLabel.Text = "· free ·"
-	s.ownerLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+	s.ownerLabel.Text = "· free plot ·"
+	s.ownerLabel.TextColor3 = Color3.fromRGB(225, 225, 225)
 	for j = 1, Config.PLOT_COUNT do
 		local pad = s.pads[j]
 		pad.pad.Color = C_EMPTY
