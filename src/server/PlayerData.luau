@@ -24,7 +24,20 @@ local DataStoreService = game:GetService("DataStoreService")
 local Config = require(ReplicatedStorage.Bloomly.data.Config)
 local SaveSchema = require(ReplicatedStorage.Bloomly.SaveSchema)
 
-local dataStore = DataStoreService:GetDataStore(Config.DATASTORE_NAME)
+-- GetDataStore THROWS in an unpublished place ("must publish to access DataStore"). Wrap it so the
+-- game still runs locally (in-memory only) instead of crashing the whole server. Persistence turns
+-- on by itself once the place is published + Studio API access is enabled.
+local dataStore: any = nil
+do
+	local ok, ds = pcall(function()
+		return DataStoreService:GetDataStore(Config.DATASTORE_NAME)
+	end)
+	if ok then
+		dataStore = ds
+	else
+		warn("[Bloomly] DataStore unavailable (" .. tostring(ds) .. ") -> IN-MEMORY ONLY. Publish the place for real saves.")
+	end
+end
 -- Unique id for THIS server instance. Empty in Studio solo -> stable fallback so the lock still works.
 local SERVER_ID = if game.JobId ~= "" then game.JobId else "studio-solo"
 
@@ -103,6 +116,12 @@ function PlayerData.load(player: Player): PlayerState
 	end
 	local template = makeDefault()
 
+	if not dataStore then
+		-- no persistence (place not published): fresh in-memory garden, no save calls
+		store[player.UserId] = template
+		return template
+	end
+
 	-- Take the lock inside the read: UpdateAsync gives us read-modify-write atomicity.
 	local ok, saved = retry(function()
 		return dataStore:UpdateAsync(keyFor(player.UserId), function(old)
@@ -137,8 +156,8 @@ end
 -- `release` = clear the lock (used on final leave) so a rejoin isn't blocked.
 function PlayerData.save(player: Player, release: boolean?): ()
 	local state = store[player.UserId]
-	if not state or noSave[player.UserId] then
-		return
+	if not state or noSave[player.UserId] or not dataStore then
+		return -- nothing to save, load failed, or no persistence available (unpublished place)
 	end
 	local payload = SaveSchema.serialize(state)
 	retry(function()
