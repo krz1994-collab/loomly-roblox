@@ -26,6 +26,8 @@ local UpgradeRules = require("../src/shared/UpgradeRules")
 local Upgrades = require("../src/shared/data/Upgrades")
 local GatherRules = require("../src/shared/GatherRules")
 local TreasureRules = require("../src/shared/TreasureRules")
+local EventRules = require("../src/shared/EventRules")
+local Events = require("../src/shared/data/Events")
 
 local passed, failed = 0, 0
 local function check(name: string, cond: boolean)
@@ -561,6 +563,54 @@ do
 	check("first claim pays out", ok and coins == TreasureRules.reward(2) and st.coins == coins)
 	check("second claim is refused", not (TreasureRules.claim(st, "t_1_1", 2)))
 	check("claimed flag recorded", TreasureRules.isFound(st, "t_1_1"))
+end
+
+-- ---- EventRules + Events data: 50 epic events ----
+do
+	eq("exactly 50 epic events", #Events.list, 50)
+	-- every event has an effect with >=1 multiplier and sane duration
+	local wellFormed = true
+	local ids = {}
+	for _, e in Events.list do
+		if type(e.id) ~= "string" or ids[e.id] or type(e.dur) ~= "number" or e.dur <= 0 or e.weight <= 0 then
+			wellFormed = false
+		end
+		ids[e.id] = true
+		local eff = e.effect
+		if not (eff.coins or eff.mutation or eff.grow or eff.luck) then
+			wellFormed = false
+		end
+	end
+	check("all 50 events: unique id + valid dur/weight + an effect", wellFormed)
+
+	local function cr(v: number): () -> number
+		return function()
+			return v
+		end
+	end
+	-- daytime: a night-only event is never picked
+	local nightIds = {}
+	for _, e in Events.list do
+		if e.night then
+			nightIds[e.id] = true
+		end
+	end
+	local dayPick = EventRules.pickEvent(Events.list, cr(0.999), 1000, false, {})
+	check("day pick returns some event", dayPick ~= nil)
+	local anyNightAtDay = false
+	for i = 0, 40 do
+		local p = EventRules.pickEvent(Events.list, cr(i / 41), 1000, false, {})
+		if p and nightIds[p.id] then
+			anyNightAtDay = true
+		end
+	end
+	check("night-only events never fire during the day", not anyNightAtDay)
+	-- cooldown excludes an event
+	local cd = {}
+	for _, e in Events.list do
+		cd[e.id] = 9999
+	end
+	check("all-on-cooldown -> nil", EventRules.pickEvent(Events.list, cr(0.5), 1000, true, cd) == nil)
 end
 
 print(string.format("\n%d passed, %d failed", passed, failed))

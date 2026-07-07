@@ -13,6 +13,7 @@ local UpgradeRules = require(ReplicatedStorage.Bloomly.UpgradeRules)
 local Upgrades = require(ReplicatedStorage.Bloomly.data.Upgrades)
 local Catalog = require(ReplicatedStorage.Bloomly.data.Catalog)
 local PlayerData = require(script.Parent.PlayerData)
+local Events = require(script.Parent.Events) -- active server-wide event multipliers (coins/mutation/grow/luck)
 
 -- Sell value + emoji for ANY inventory key. Crops are "plantId|mutationId"; gathered items are
 -- "category|id" (fish|carp, bug|white, ore|gem, shell|pearl, forage|apple, mushroom|mushroom).
@@ -123,7 +124,9 @@ function Farm.plant(state: PlayerState, seedId: string, plotIndex: number, owned
 	end
 	state.coins -= plant.cost
 	plot.seedId = seedId
-	plot.readyAt = Rules.readyAt(now(), plant.growMs / upEffect(state, "growSpeed")) -- Fast-Growth upgrade
+	-- grow time shrinks with the Fast-Growth upgrade AND any active "grow" event (Time Storm ×4 etc.)
+	local growDiv = upEffect(state, "growSpeed") * Events.mult(now(), "grow")
+	plot.readyAt = Rules.readyAt(now(), plant.growMs / growDiv)
 	return true, "ok"
 end
 
@@ -143,7 +146,10 @@ function Farm.harvest(state: PlayerState, plotIndex: number): (boolean, string, 
 		return false, "not_ready", nil -- server says it's still growing; client cannot override
 	end
 	local seedId = plot.seedId :: string
-	local mutationId = Farm.rollMutation(upEffect(state, "luck")) -- SERVER decides; Lucky-Charm boosts odds
+	-- SERVER decides the mutation. Lucky-Charm upgrade AND any active "mutation" event (Blood Moon ×3
+	-- etc.) both push the odds toward rarer tiers.
+	local mutBoost = upEffect(state, "luck") * Events.mult(now(), "mutation")
+	local mutationId = Farm.rollMutation(mutBoost)
 	local key = invKey(seedId, mutationId)
 	state.inventory[key] = (state.inventory[key] or 0) + 1
 	state.harvests += 1
@@ -175,7 +181,8 @@ function Farm.sellAll(state: PlayerState): (boolean, number)
 	if gained <= 0 then
 		return false, 0 -- nothing sellable
 	end
-	gained = math.floor(gained * Rules.coinMult(state.rebirths or 0) * upEffect(state, "sellBonus")) -- prestige + Market-Deal upgrade
+	-- prestige coinMult + Market-Deal upgrade + any active "coins" event (Market Boom / Golden Rain ×2)
+	gained = math.floor(gained * Rules.coinMult(state.rebirths or 0) * upEffect(state, "sellBonus") * Events.mult(now(), "coins"))
 	state.coins += gained
 	state.lifetimeEarned += gained -- lifetimeEarned only ever grows; drives "earned" unlocks
 	table.clear(state.inventory)

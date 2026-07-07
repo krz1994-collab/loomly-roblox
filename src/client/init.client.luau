@@ -82,6 +82,40 @@ hint.TextSize = 15
 hint.Text = "Find your 🌱 farm below · press E on a plot to plant / harvest · sell at 🧺 Market"
 hint.Parent = gui
 
+-- ---- event banner (top-center, under the hint) ----
+-- Shows the ACTIVE server-wide event (from §D's 50 EPIC events) with a live countdown. Hidden when
+-- no event is running. Pulses so a kid can't miss that something big is happening.
+local eventBanner = Instance.new("TextLabel")
+eventBanner.Size = UDim2.new(0, 620, 0, 40)
+eventBanner.Position = UDim2.new(0.5, -310, 0, 40)
+eventBanner.BackgroundColor3 = Color3.fromRGB(80, 30, 90)
+eventBanner.BackgroundTransparency = 1
+eventBanner.BorderSizePixel = 0
+eventBanner.TextColor3 = Color3.fromRGB(255, 240, 170)
+eventBanner.TextStrokeTransparency = 1
+eventBanner.Font = Enum.Font.GothamBold
+eventBanner.TextSize = 18
+eventBanner.Text = ""
+eventBanner.Visible = false
+eventBanner.Parent = gui
+local ebCorner = Instance.new("UICorner")
+ebCorner.CornerRadius = UDim.new(0, 8)
+ebCorner.Parent = eventBanner
+
+local currentEvent: any = nil -- last event snapshot from the server {name,emoji,desc,timeLeft}
+-- Local countdown ticker so the banner timer ticks smoothly between state pushes.
+task.spawn(function()
+	while true do
+		task.wait(1)
+		if currentEvent and currentEvent.timeLeft and currentEvent.timeLeft > 0 then
+			currentEvent.timeLeft -= 1
+			local mins = math.floor(currentEvent.timeLeft / 60)
+			local secs = currentEvent.timeLeft % 60
+			eventBanner.Text = string.format("%s  %s  ·  %d:%02d left", currentEvent.emoji, currentEvent.name, mins, secs)
+		end
+	end
+end)
+
 -- ---- quest tracker (top-right) ----
 local questPanel = Instance.new("TextLabel")
 questPanel.Size = UDim2.new(0, 300, 0, 150)
@@ -205,6 +239,20 @@ local function render(view: any)
 				btn.Text = s.emoji .. " " .. s.id .. "\nbuy " .. s.cost .. "c"
 			end
 		end
+	end
+
+	-- event banner
+	if view.event then
+		currentEvent = view.event
+		eventBanner.Visible = true
+		eventBanner.BackgroundTransparency = 0.15
+		eventBanner.TextStrokeTransparency = 0.4
+		local mins = math.floor((view.event.timeLeft or 0) / 60)
+		local secs = (view.event.timeLeft or 0) % 60
+		eventBanner.Text = string.format("%s  %s  ·  %d:%02d left", view.event.emoji, view.event.name, mins, secs)
+	else
+		currentEvent = nil
+		eventBanner.Visible = false
 	end
 
 	-- quest tracker

@@ -22,6 +22,8 @@ local UpgradeRules = require(ReplicatedStorage.Bloomly.UpgradeRules)
 local Upgrades = require(ReplicatedStorage.Bloomly.data.Upgrades)
 local GatherRules = require(ReplicatedStorage.Bloomly.GatherRules)
 local TreasureRules = require(ReplicatedStorage.Bloomly.TreasureRules)
+local EventRules = require(ReplicatedStorage.Bloomly.EventRules)
+local EventsData = require(ReplicatedStorage.Bloomly.data.Events)
 
 local gatherRng = Random.new()
 local function gatherRand(): number
@@ -33,6 +35,7 @@ local Farm = require(script.Farm)
 local PlotClaim = require(script.PlotClaim)
 local World = require(script.World)
 local Quest = require(script.Quest)
+local Events = require(script.Events)
 
 -- Build the shared 3D world once, before anyone arrives.
 World.build()
@@ -89,6 +92,7 @@ local function pushState(player: Player)
 	view.section = section -- so the client knows which section is its own
 	view.selectedSeed = selectedSeed[player.UserId]
 	view.quests = Quest.activeView(state) -- active quests + progress for the tracker
+	view.event = Events.view(os.time()) -- active server-wide event (nil if none) -> client banner
 	Remotes.StateUpdate:FireClient(player, view)
 	updateLeaderstats(player, state)
 	if section then
@@ -380,6 +384,7 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 		local cat = prompt:GetAttribute("list")
 		if type(cat) == "string" then
 			local luck = UpgradeRules.effectAt(Upgrades.get("luck") :: any, (state.upgrades and state.upgrades.luck) or 0)
+					* Events.mult(os.time(), "luck") -- active "luck" event (Gold Rush / Butterfly Migration etc.)
 			local id: string? = nil
 			if cat == "mushroom" then
 				id = Catalog.Mushroom.id
@@ -423,6 +428,63 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 				pushState(player)
 			end
 		end
+	end
+end)
+
+-- ---- day / night cycle (ambient, server-authoritative) --------------------------
+-- A shared ~20-minute day so dusk/night is the SAME for everyone (night-only events + future
+-- nocturnal bugs/stars rely on this). ClockTime advances 24h over DAY_LENGTH real seconds.
+local Lighting = game:GetService("Lighting")
+local DAY_LENGTH = 1200 -- seconds of real time per in-game day
+local function isNightNow(): boolean
+	local h = Lighting.ClockTime
+	return h < 6 or h >= 18
+end
+task.spawn(function()
+	Lighting.ClockTime = 8 -- start mid-morning
+	while true do
+		task.wait(2)
+		Lighting.ClockTime = (Lighting.ClockTime + (24 / DAY_LENGTH) * 2) % 24
+	end
+end)
+
+-- ---- EventDirector: the 50 EPIC events -----------------------------------------
+-- Every EVENT_INTERVAL seconds we pick a weighted event (respecting per-event cooldowns + night
+-- gating) via the pure EventRules, START it (Events holds its multipliers), and ANNOUNCE it to the
+-- whole server. Farm + gathering read Events.mult(...) so the effect is REAL immediately. When it
+-- expires we announce the end. The director waits until at least one player is online.
+local EVENT_INTERVAL = 240 -- ~4 min between events (frequent enough to see while play-testing)
+local eventRng = Random.new()
+local function eventRand(): number
+	return eventRng:NextNumber()
+end
+local function announceAll(msg: string)
+	for _, player in Players:GetPlayers() do
+		Remotes.Notify:FireClient(player, msg)
+	end
+end
+task.spawn(function()
+	local cooldownUntil: { [string]: number } = {}
+	task.wait(45) -- let the first joiner settle in before the first event
+	while true do
+		if #Players:GetPlayers() > 0 then
+			local nowT = os.time()
+			local picked = EventRules.pickEvent(EventsData.list, eventRand, nowT, isNightNow(), cooldownUntil)
+			if picked then
+				Events.start(picked, nowT, picked.dur)
+				cooldownUntil[picked.id] = nowT + picked.cd
+				announceAll(picked.emoji .. " EVENT: " .. picked.name .. " -- " .. picked.desc)
+				for _, player in Players:GetPlayers() do
+					pushState(player) -- flash the banner immediately
+				end
+				task.wait(picked.dur)
+				announceAll(picked.emoji .. " " .. picked.name .. " has ended. Thanks for playing!")
+				for _, player in Players:GetPlayers() do
+					pushState(player) -- clear the banner
+				end
+			end
+		end
+		task.wait(EVENT_INTERVAL)
 	end
 end)
 
