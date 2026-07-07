@@ -57,6 +57,8 @@ export type PlayerState = {
 	vehicle: string?, -- owned vehicle id (nil = on foot)
 	rebirths: number, -- prestige count (+10% coins each)
 	daily: { day: number, streak: number }, -- daily-login streak
+	quests: { done: { [string]: boolean }, active: { [string]: { step: number, prog: number } } },
+	unlocks: { [string]: boolean }, -- boats/islands/features from quest rewards
 }
 
 local PlayerData = {}
@@ -80,6 +82,8 @@ local function makeDefault(): PlayerState
 		inventory = {},
 		rebirths = 0,
 		daily = { day = 0, streak = 0 },
+		quests = { done = {}, active = {} },
+		unlocks = {},
 	}
 end
 

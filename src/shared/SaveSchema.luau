@@ -26,6 +26,8 @@ export type PlayerState = {
 	vehicle: string?, -- owned vehicle id (nil = on foot); gives a walkspeed boost
 	rebirths: number, -- prestige count; each = +10% coin multiplier
 	daily: { day: number, streak: number }, -- daily-login streak state
+	quests: { done: { [string]: boolean }, active: { [string]: { step: number, prog: number } } },
+	unlocks: { [string]: boolean }, -- boats/islands/features unlocked via quest rewards
 }
 
 local SaveSchema = {}
@@ -68,6 +70,8 @@ function SaveSchema.serialize(state: PlayerState): any
 		vehicle = state.vehicle,
 		rebirths = state.rebirths,
 		daily = deepCopy(state.daily),
+		quests = deepCopy(state.quests),
+		unlocks = deepCopy(state.unlocks),
 	}
 end
 
@@ -101,6 +105,34 @@ function SaveSchema.validate(candidate: any, template: PlayerState): PlayerState
 	out.rebirths = isNonNegNumber(t.rebirths) and t.rebirths or 0
 	local d: any = type(t.daily) == "table" and t.daily or {}
 	out.daily = { day = isNonNegNumber(d.day) and d.day or 0, streak = isNonNegNumber(d.streak) and d.streak or 0 }
+
+	-- unlocks: map of string->true
+	out.unlocks = {}
+	if type(t.unlocks) == "table" then
+		for k, v in t.unlocks do
+			if type(k) == "string" and v == true then
+				out.unlocks[k] = true
+			end
+		end
+	end
+
+	-- quests: { done = {[id]=true}, active = {[id]={step,prog}} }
+	out.quests = { done = {}, active = {} }
+	local qd: any = type(t.quests) == "table" and t.quests or {}
+	if type(qd.done) == "table" then
+		for k, v in qd.done do
+			if type(k) == "string" and v == true then
+				out.quests.done[k] = true
+			end
+		end
+	end
+	if type(qd.active) == "table" then
+		for k, a in qd.active do
+			if type(k) == "string" and type(a) == "table" then
+				out.quests.active[k] = { step = isNonNegNumber(a.step) and a.step or 1, prog = isNonNegNumber(a.prog) and a.prog or 0 }
+			end
+		end
+	end
 
 	-- codex: map of string->true
 	out.codex = {}

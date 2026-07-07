@@ -20,6 +20,8 @@ local SaveSchema = require("../src/shared/SaveSchema")
 local WorldLayout = require("../src/shared/data/WorldLayout")
 local PlotRules = require("../src/shared/PlotRules")
 local Catalog = require("../src/shared/data/Catalog")
+local QuestRules = require("../src/shared/QuestRules")
+local Quests = require("../src/shared/data/Quests")
 
 local passed, failed = 0, 0
 local function check(name: string, cond: boolean)
@@ -216,7 +218,7 @@ local function tmpl(): any
 	for _ = 1, 6 do
 		table.insert(plots, { seedId = nil, readyAt = nil })
 	end
-	return { coins = 20, lifetimeEarned = 0, harvests = 0, xp = 0, codex = {}, inventory = {}, plots = plots, rebirths = 0, daily = { day = 0, streak = 0 } }
+	return { coins = 20, lifetimeEarned = 0, harvests = 0, xp = 0, codex = {}, inventory = {}, plots = plots, rebirths = 0, daily = { day = 0, streak = 0 }, quests = { done = {}, active = {} }, unlocks = {} }
 end
 do
 	local st: any = {
@@ -228,6 +230,8 @@ do
 		inventory = { ["radish|normal"] = 3, ["pumpkin|giant"] = 1 },
 		rebirths = 2,
 		daily = { day = 100, streak = 3 },
+		quests = { done = { tut_01 = true }, active = { tut_02 = { step = 1, prog = 1 } } },
+		unlocks = { boat = true },
 		plots = {
 			{ seedId = "radish", readyAt = 1700000000 },
 			{ seedId = nil, readyAt = nil },
@@ -402,6 +406,65 @@ do
 	check("gap resets streak to 1 (reward 15)", r4 == 15 and s4 == 1)
 	local _, r7 = Rules.dailyClaim(1, 9, 2)
 	check("streak reward caps at day 7 (200)", r7 == 200)
+end
+
+-- ---- QuestRules: the pure quest engine ----
+do
+	-- a 2-step quest: harvest 2 radish, then sell 3
+	local q2: any = { id = "q2", giver = "x", name = "T", steps = { { kind = "harvest", target = "radish", count = 2 }, { kind = "sell", count = 3 } }, reward = { coins = 100, xp = 10, unlock = "thing" } }
+	local q1: any = { id = "q1", giver = "x", name = "P", steps = { { kind = "plant", target = "any", count = 1 } }, reward = { coins = 5 } }
+	local st: any = { xp = 0 }
+
+	check("fresh quest is available", QuestRules.isAvailable(q2, st, 0))
+	check("accept activates it", QuestRules.accept(st, q2))
+	check("cannot double-accept", not QuestRules.accept(st, q2))
+	check("active quest not available again", not QuestRules.isAvailable(q2, st, 0))
+
+	-- wrong event does nothing
+	check("non-matching event no-ops", not QuestRules.report(st, { q2 }, "mine", nil, 5))
+	-- step 1 needs 2 radish
+	QuestRules.report(st, { q2 }, "harvest", "radish", 1)
+	check("not ready after 1/2 of step 1", not QuestRules.isReady(st, q2))
+	QuestRules.report(st, { q2 }, "harvest", "radish", 1)
+	check("still not ready (step 2 pending)", not QuestRules.isReady(st, q2))
+	eq("advanced to step 2", st.quests.active.q2.step, 2)
+	-- step 2 needs sell 3
+	QuestRules.report(st, { q2 }, "sell", nil, 3)
+	check("ready after all steps", QuestRules.isReady(st, q2))
+
+	-- turn-in grants reward once, is idempotent
+	local r = QuestRules.turnIn(st, q2)
+	check("turnIn returns the reward", r ~= nil and r.coins == 100 and r.unlock == "thing")
+	check("quest now done", QuestRules.isDone(st, "q2"))
+	check("turnIn again returns nil", QuestRules.turnIn(st, q2) == nil)
+
+	-- prereq gating: q1 depends on nothing; a quest with prereq q1 is unavailable until q1 done
+	local q3: any = { id = "q3", giver = "x", name = "G", steps = { { kind = "plant", target = "any", count = 1 } }, reward = {}, prereq = "q99", level = 5 }
+	check("prereq not done -> unavailable", not QuestRules.isAvailable(q3, st, 9))
+	q3.prereq = "q2" -- now prereq is done
+	check("prereq done but level too low -> unavailable", not QuestRules.isAvailable(q3, st, 4))
+	check("prereq done + level ok -> available", QuestRules.isAvailable(q3, st, 5))
+end
+-- data integrity: every quest step uses a known verb; every giver is a real npc-ish id string
+do
+	local verbs = { talk = true, plant = true, harvest = true, harvest_mut = true, sell = true, fish = true, catch_bug = true, mine = true, forage = true, cook = true, buy_animal = true, collect_animal = true, breed = true, upgrade = true, decorate = true, trade = true, sail = true, buy_vehicle = true, buy_boat = true, find_treasure = true, rebirth = true }
+	local ok, ids = true, {}
+	for _, quest in Quests.list do
+		if type(quest.id) ~= "string" or ids[quest.id] then
+			ok = false
+		end
+		ids[quest.id] = true
+		if type(quest.giver) ~= "string" or type(quest.steps) ~= "table" or #quest.steps == 0 then
+			ok = false
+		end
+		for _, s in quest.steps do
+			if not verbs[s.kind] or type(s.count) ~= "number" or s.count <= 0 then
+				ok = false
+			end
+		end
+	end
+	check("all quests: unique id + valid givers + known step verbs", ok)
+	check("starter quest set has >= 40 rows", #Quests.list >= 40)
 end
 
 print(string.format("\n%d passed, %d failed", passed, failed))
