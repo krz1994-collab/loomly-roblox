@@ -24,6 +24,50 @@ gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
 gui.Parent = playerGui
 
+-- ---- loading screen (polish) : covers the screen until the first authoritative state arrives ----
+local loading = Instance.new("Frame")
+loading.Size = UDim2.fromScale(1, 1)
+loading.BackgroundColor3 = Color3.fromRGB(24, 40, 26)
+loading.BorderSizePixel = 0
+loading.ZIndex = 50
+loading.Parent = gui
+local loadingText = Instance.new("TextLabel")
+loadingText.Size = UDim2.new(1, 0, 0, 80)
+loadingText.Position = UDim2.new(0, 0, 0.5, -40)
+loadingText.BackgroundTransparency = 1
+loadingText.TextColor3 = Color3.fromRGB(240, 255, 230)
+loadingText.Font = Enum.Font.GothamBold
+loadingText.TextSize = 40
+loadingText.Text = "🌱 Bloomly"
+loadingText.ZIndex = 51
+loadingText.Parent = loading
+local loadingSub = Instance.new("TextLabel")
+loadingSub.Size = UDim2.new(1, 0, 0, 30)
+loadingSub.Position = UDim2.new(0, 0, 0.5, 20)
+loadingSub.BackgroundTransparency = 1
+loadingSub.TextColor3 = Color3.fromRGB(190, 220, 190)
+loadingSub.Font = Enum.Font.Gotham
+loadingSub.TextSize = 16
+loadingSub.Text = "Growing your world..."
+loadingSub.ZIndex = 51
+loadingSub.Parent = loading
+local loadingDone = false
+local function hideLoading()
+	if loadingDone then
+		return
+	end
+	loadingDone = true
+	task.spawn(function()
+		for i = 0, 10 do
+			loading.BackgroundTransparency = i / 10
+			loadingText.TextTransparency = i / 10
+			loadingSub.TextTransparency = i / 10
+			task.wait(0.04)
+		end
+		loading.Visible = false
+	end)
+end
+
 -- ---- top-left stats panel ----
 local hud = Instance.new("Frame")
 hud.Size = UDim2.new(0, 360, 0, 74)
@@ -221,6 +265,7 @@ local lastSection: number? = nil -- the player's own plot section (for the "your
 local function render(view: any)
 	stats.Text = string.format("🪙 %d    Lv %d (%d xp)    📖 %d    🌾 %d", view.coins, view.level, view.xp, view.codexCount, view.harvests)
 
+	hideLoading() -- first authoritative state arrived -> reveal the world
 	lastInventory = view.inventory or {}
 	lastSection = view.section or lastSection
 	local count, worth = 0, 0

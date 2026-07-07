@@ -29,6 +29,7 @@ local AchievementRules = require(ReplicatedStorage.Bloomly.AchievementRules)
 local Achievements = require(ReplicatedStorage.Bloomly.data.Achievements)
 local CommandRules = require(ReplicatedStorage.Bloomly.CommandRules)
 local Commands = require(ReplicatedStorage.Bloomly.data.Commands)
+local Premium = require(ReplicatedStorage.Bloomly.data.Premium)
 
 local gatherRng = Random.new()
 local function gatherRand(): number
@@ -588,6 +589,14 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 				Remotes.Notify:FireClient(player, "You already found this treasure. Look for others! 🗺️")
 			end
 		end
+	elseif kind == "premium" then
+		-- Show the (cosmetic/convenience-only) Robux catalogue. Real purchase prompts wire in once the
+		-- MarketplaceService product IDs are configured; for now this lists what's coming (zero P2W).
+		local lines = { "✨ Premium (all cosmetic / convenience -- NEVER pay-to-win):" }
+		for _, p in Premium.list do
+			table.insert(lines, p.emoji .. " " .. p.name .. " -- " .. p.price .. " R$")
+		end
+		Remotes.Notify:FireClient(player, table.concat(lines, "\n"))
 	elseif kind == "museum" then
 		-- Donate ONE of every inventory item type not yet in the museum; pay a flat reward each + a
 		-- collection badge. Encourages keeping one of everything rather than selling it all.

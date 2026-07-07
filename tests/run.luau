@@ -44,6 +44,7 @@ local TradeRules = require("../src/shared/TradeRules")
 local CommandRules = require("../src/shared/CommandRules")
 local Commands = require("../src/shared/data/Commands")
 local MapRules = require("../src/shared/MapRules")
+local Premium = require("../src/shared/data/Premium")
 
 local passed, failed = 0, 0
 local function check(name: string, cond: boolean)
@@ -773,6 +774,22 @@ do
 	check("settle gave carrots to A", invA["carrot|normal"] == 2)
 	check("settle cleared escrows", next(escA) == nil and next(escB) == nil)
 	eq("CONSERVED after settle (no dupe/vanish)", grandTotal(), START)
+end
+
+-- ---- Premium: STRICT no-pay-to-win contract (block 16) ----
+do
+	check("premium catalogue is non-empty", #Premium.list > 0)
+	local allFair = true
+	for _, p in Premium.list do
+		if not Premium.isFair(p) then
+			allFair = false
+		end
+	end
+	check("EVERY premium product is cosmetic/convenience only (no P2W)", allFair)
+	-- a smuggled P2W product must be rejected
+	check("a coins-granting product is rejected", not Premium.isFair({ id = "x", name = "x", emoji = "x", robuxId = 0, price = 1, kind = "product", desc = "x", affects = { "coins" } }))
+	check("a mutation-boosting product is rejected", not Premium.isFair({ id = "x", name = "x", emoji = "x", robuxId = 0, price = 1, kind = "product", desc = "x", affects = { "cosmetic", "mutation" } }))
+	check("a product affecting nothing is rejected", not Premium.isFair({ id = "x", name = "x", emoji = "x", robuxId = 0, price = 1, kind = "product", desc = "x", affects = {} }))
 end
 
 -- ---- MapRules: world->map projection (block 16) ----

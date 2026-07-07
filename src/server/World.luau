@@ -238,6 +238,10 @@ function World.build()
 		local museum = mkPart("Museum", Vector3.new(14, 14, 10), CFrame.new(-95, 7, WorldLayout.PLAZA_Z + 30), Color3.fromRGB(210, 200, 175), rootF, Enum.Material.Marble)
 		mkPrompt(museum, "Donate to museum", "museum")
 		mkBillboard(museum, 14, 2, 9).Text = "🏛️ Museum — donate 1 of each"
+		-- Premium Boutique: cosmetic/convenience Robux catalogue (block 16, zero pay-to-win).
+		local boutique = mkPart("PremiumShop", Vector3.new(8, 11, 7), CFrame.new(95, 5.5, WorldLayout.PLAZA_Z + 30), Color3.fromRGB(230, 180, 220), rootF, Enum.Material.Neon)
+		mkPrompt(boutique, "Browse Premium", "premium")
+		mkBillboard(boutique, 10, 1.8, 7).Text = "✨ Premium — cosmetics only"
 	end
 
 	-- Homestead village (blocks 7-10): a row of stations behind the plaza. Each is a labelled hut with
