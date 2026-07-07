@@ -30,6 +30,12 @@ export type PlayerState = {
 	unlocks: { [string]: boolean }, -- boats/islands/features unlocked via quest rewards
 	upgrades: { [string]: number }, -- upgrade track -> level
 	treasuresFound: { [string]: boolean }, -- one-time-claimed hidden treasures
+	-- ---- time-producer systems (blocks 7-10); slotKey/lastX are os.time() epoch producers ----
+	orchard: { [string]: { treeId: string, lastPick: number } }, -- fruit trees -> fruit over time
+	animals: { [string]: { animalId: string, lastCollect: number } }, -- pen animals -> product over time
+	kitchen: { recipeId: string?, doneAt: number? }, -- single cooking slot (recipe cooking until doneAt)
+	bees: { level: number, lastCollect: number }, -- beehive -> honey over time
+	house: { tier: number, lastRent: number, decor: { [string]: number } }, -- house tier + passive rent + decor placed
 }
 
 local SaveSchema = {}
@@ -76,6 +82,11 @@ function SaveSchema.serialize(state: PlayerState): any
 		unlocks = deepCopy(state.unlocks),
 		upgrades = deepCopy(state.upgrades),
 		treasuresFound = deepCopy(state.treasuresFound),
+		orchard = deepCopy(state.orchard),
+		animals = deepCopy(state.animals),
+		kitchen = deepCopy(state.kitchen),
+		bees = deepCopy(state.bees),
+		house = deepCopy(state.house),
 	}
 end
 
@@ -154,6 +165,55 @@ function SaveSchema.validate(candidate: any, template: PlayerState): PlayerState
 		for k, a in qd.active do
 			if type(k) == "string" and type(a) == "table" then
 				out.quests.active[k] = { step = isNonNegNumber(a.step) and a.step or 1, prog = isNonNegNumber(a.prog) and a.prog or 0 }
+			end
+		end
+	end
+
+	-- orchard: slotKey(string) -> { treeId:string, lastPick:number }
+	out.orchard = {}
+	if type(t.orchard) == "table" then
+		for k, o in t.orchard do
+			if type(k) == "string" and type(o) == "table" and type(o.treeId) == "string" then
+				out.orchard[k] = { treeId = o.treeId, lastPick = isNonNegNumber(o.lastPick) and o.lastPick or 0 }
+			end
+		end
+	end
+
+	-- animals: slotKey(string) -> { animalId:string, lastCollect:number }
+	out.animals = {}
+	if type(t.animals) == "table" then
+		for k, a in t.animals do
+			if type(k) == "string" and type(a) == "table" and type(a.animalId) == "string" then
+				out.animals[k] = { animalId = a.animalId, lastCollect = isNonNegNumber(a.lastCollect) and a.lastCollect or 0 }
+			end
+		end
+	end
+
+	-- kitchen: single cooking slot { recipeId:string?, doneAt:number? }
+	local kt: any = type(t.kitchen) == "table" and t.kitchen or {}
+	out.kitchen = {
+		recipeId = if type(kt.recipeId) == "string" then kt.recipeId else nil,
+		doneAt = if type(kt.doneAt) == "number" then kt.doneAt else nil,
+	}
+
+	-- bees: { level, lastCollect }
+	local bt: any = type(t.bees) == "table" and t.bees or {}
+	out.bees = {
+		level = isNonNegNumber(bt.level) and math.floor(bt.level) or 0,
+		lastCollect = isNonNegNumber(bt.lastCollect) and bt.lastCollect or 0,
+	}
+
+	-- house: { tier, lastRent, decor:{[id]=count} }
+	local ht: any = type(t.house) == "table" and t.house or {}
+	out.house = {
+		tier = isNonNegNumber(ht.tier) and math.floor(ht.tier) or 0,
+		lastRent = isNonNegNumber(ht.lastRent) and ht.lastRent or 0,
+		decor = {},
+	}
+	if type(ht.decor) == "table" then
+		for k, n in ht.decor do
+			if type(k) == "string" and isNonNegNumber(n) and n > 0 then
+				out.house.decor[k] = math.floor(n)
 			end
 		end
 	end

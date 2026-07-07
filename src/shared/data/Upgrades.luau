@@ -21,6 +21,7 @@ local Upgrades: { Track } = {
 	{ id = "growSpeed", name = "Fast Growth", emoji = "⚡", maxLevel = 10, baseCost = 400, growth = 1.6, base = 1.0, perLevel = 0.08 }, -- crops grow +8% faster / level
 	{ id = "walkSpeed", name = "Swift Boots", emoji = "👟", maxLevel = 8, baseCost = 300, growth = 1.7, base = 1.0, perLevel = 0.06 }, -- +6% walk / level
 	{ id = "luck", name = "Lucky Charm", emoji = "🍀", maxLevel = 8, baseCost = 1000, growth = 1.8, base = 1.0, perLevel = 0.15 }, -- +15% mutation odds / level
+	{ id = "greenhouse", name = "Greenhouse", emoji = "🏡", maxLevel = 8, baseCost = 800, growth = 1.7, base = 1.0, perLevel = 0.12 }, -- fruit trees ripen +12% faster / level
 }
 
 local U = {}

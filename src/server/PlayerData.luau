@@ -61,6 +61,11 @@ export type PlayerState = {
 	unlocks: { [string]: boolean }, -- boats/islands/features from quest rewards
 	upgrades: { [string]: number }, -- upgrade track -> level
 	treasuresFound: { [string]: boolean }, -- one-time-claimed treasures
+	orchard: { [string]: { treeId: string, lastPick: number } }, -- fruit trees (block 7)
+	animals: { [string]: { animalId: string, lastCollect: number } }, -- pen animals (block 8)
+	kitchen: { recipeId: string?, doneAt: number? }, -- cooking slot (block 9)
+	bees: { level: number, lastCollect: number }, -- beehive (block 9)
+	house: { tier: number, lastRent: number, decor: { [string]: number } }, -- house + rent (block 10)
 }
 
 local PlayerData = {}
@@ -88,6 +93,11 @@ local function makeDefault(): PlayerState
 		unlocks = {},
 		upgrades = {},
 		treasuresFound = {},
+		orchard = {},
+		animals = {},
+		kitchen = { recipeId = nil, doneAt = nil },
+		bees = { level = 0, lastCollect = 0 },
+		house = { tier = 0, lastRent = 0, decor = {} },
 	}
 end
 

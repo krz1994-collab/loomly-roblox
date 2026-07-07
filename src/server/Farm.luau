@@ -12,6 +12,10 @@ local Rules = require(ReplicatedStorage.Bloomly.Rules) -- the pure, VPS-tested l
 local UpgradeRules = require(ReplicatedStorage.Bloomly.UpgradeRules)
 local Upgrades = require(ReplicatedStorage.Bloomly.data.Upgrades)
 local Catalog = require(ReplicatedStorage.Bloomly.data.Catalog)
+local Trees = require(ReplicatedStorage.Bloomly.data.Trees)
+local Animals = require(ReplicatedStorage.Bloomly.data.Animals)
+local Recipes = require(ReplicatedStorage.Bloomly.data.Recipes)
+local Bees = require(ReplicatedStorage.Bloomly.data.Bees)
 local PlayerData = require(script.Parent.PlayerData)
 local Events = require(script.Parent.Events) -- active server-wide event multipliers (coins/mutation/grow/luck)
 
@@ -23,6 +27,10 @@ local GATHER_LISTS: { [string]: { any } } = {
 	bug = Catalog.Bugs,
 	ore = Catalog.Ores,
 	shell = Catalog.Shells,
+	fruit = Trees.Fruits, -- orchard (block 7): {id,emoji,sell}
+	product = Animals.Products, -- pen animals (block 8): {id,emoji,sell}
+	dish = Recipes.list, -- cooked dishes (block 9): rows carry id/emoji/sell
+	honey = { { id = Bees.HONEY.id, emoji = Bees.HONEY.emoji, sell = Bees.HONEY.sell } }, -- beehive (block 9)
 }
 local function itemSell(key: string): (number, string)
 	local sep = string.find(key, Config.INV_SEP, 1, true)
@@ -146,9 +154,10 @@ function Farm.harvest(state: PlayerState, plotIndex: number): (boolean, string, 
 		return false, "not_ready", nil -- server says it's still growing; client cannot override
 	end
 	local seedId = plot.seedId :: string
-	-- SERVER decides the mutation. Lucky-Charm upgrade AND any active "mutation" event (Blood Moon ×3
-	-- etc.) both push the odds toward rarer tiers.
-	local mutBoost = upEffect(state, "luck") * Events.mult(now(), "mutation")
+	-- SERVER decides the mutation. Lucky-Charm upgrade, a live beehive (pollination), AND any active
+	-- "mutation" event (Blood Moon ×3 etc.) all push the odds toward rarer tiers.
+	local hiveLvl = (state.bees and state.bees.level) or 0
+	local mutBoost = upEffect(state, "luck") * Events.mult(now(), "mutation") * Bees.pollinationMult(hiveLvl)
 	local mutationId = Farm.rollMutation(mutBoost)
 	local key = invKey(seedId, mutationId)
 	state.inventory[key] = (state.inventory[key] or 0) + 1

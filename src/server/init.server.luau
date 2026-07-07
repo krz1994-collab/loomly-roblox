@@ -36,6 +36,7 @@ local PlotClaim = require(script.PlotClaim)
 local World = require(script.World)
 local Quest = require(script.Quest)
 local Events = require(script.Events)
+local Homestead = require(script.Homestead)
 
 -- Build the shared 3D world once, before anyone arrives.
 World.build()
@@ -427,6 +428,50 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 				Remotes.Notify:FireClient(player, "⬆️ Upgraded " .. track.name .. " to Lv " .. (state.upgrades[trackId] or 0) .. "!")
 				pushState(player)
 			end
+		end
+	elseif kind == "homestead" then
+		-- Blocks 7-10: one dispatch for the orchard / pen / kitchen / hive / house stations. The prompt
+		-- carries an "act" attribute; Homestead enforces cost/unlock/timers on the caller's own state.
+		local act = prompt:GetAttribute("act")
+		local nowT = os.time()
+		local msg: string? = nil
+		local changed = false
+		if act == "orchard_plant" then
+			local ok, m = Homestead.plantTree(state, nowT); changed = ok; msg = m
+		elseif act == "orchard_pick" then
+			local n, m = Homestead.pickFruit(state, nowT); changed = n > 0; msg = m
+			if n > 0 then Quest.report(player, "harvest", "fruit", n) end
+		elseif act == "pen_buy" then
+			local ok, m = Homestead.buyAnimal(state, nowT); changed = ok; msg = m
+		elseif act == "pen_collect" then
+			local n, m = Homestead.collectProducts(state, nowT); changed = n > 0; msg = m
+			if n > 0 then Quest.report(player, "collect_animal", nil, n) end
+		elseif act == "pen_breed" then
+			local ok, m = Homestead.breed(state, gatherRand, nowT); changed = ok; msg = m
+		elseif act == "cook_start" then
+			local ok, m = Homestead.cook(state, nowT); changed = ok; msg = m
+		elseif act == "cook_collect" then
+			local ok, m = Homestead.collectDish(state, nowT); changed = ok; msg = m
+			if ok then Quest.report(player, "cook", nil, 1) end
+		elseif act == "hive_up" then
+			local ok, m = Homestead.upgradeHive(state, nowT); changed = ok; msg = m
+			if ok then Quest.report(player, "upgrade", "hive", 1) end
+		elseif act == "hive_collect" then
+			local n, m = Homestead.collectHoney(state, nowT); changed = n > 0; msg = m
+		elseif act == "house_up" then
+			local ok, m = Homestead.upgradeHouse(state, nowT); changed = ok; msg = m
+			if ok then Quest.report(player, "upgrade", "house", 1) end
+		elseif act == "house_rent" then
+			local n, m = Homestead.collectRent(state, nowT); changed = n > 0; msg = m
+		elseif act == "house_decor" then
+			local ok, m = Homestead.buyDecor(state); changed = ok; msg = m
+			if ok then Quest.report(player, "decorate", nil, 1) end
+		end
+		if msg then
+			Remotes.Notify:FireClient(player, msg)
+		end
+		if changed then
+			pushState(player)
 		end
 	end
 end)

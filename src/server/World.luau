@@ -212,6 +212,33 @@ function World.build()
 		mkPrompt(daily, "Claim daily gift", "dailygift")
 		mkBillboard(daily, 8, 1.6, 6).Text = "🎁 Daily Gift"
 	end
+
+	-- Homestead village (blocks 7-10): a row of stations behind the plaza. Each is a labelled hut with
+	-- a small pad per action (own ProximityPrompt so kids see one clear key each). All act on the
+	-- caller's OWN persistent orchard/pen/kitchen/hive/house (like the shared Market/upgrade kiosk).
+	do
+		local HOME_Z = WorldLayout.PLAZA_Z + 90
+		local stations = {
+			{ name = "Orchard", emoji = "🌳", color = Color3.fromRGB(80, 150, 70), acts = { { t = "Plant tree", a = "orchard_plant" }, { t = "Pick fruit", a = "orchard_pick" } } },
+			{ name = "Animal Pen", emoji = "🐄", color = Color3.fromRGB(190, 160, 110), acts = { { t = "Buy animal", a = "pen_buy" }, { t = "Collect", a = "pen_collect" }, { t = "Breed", a = "pen_breed" } } },
+			{ name = "Kitchen", emoji = "🍳", color = Color3.fromRGB(205, 120, 90), acts = { { t = "Cook dish", a = "cook_start" }, { t = "Collect dish", a = "cook_collect" } } },
+			{ name = "Beehive", emoji = "🐝", color = Color3.fromRGB(230, 200, 80), acts = { { t = "Build/upgrade", a = "hive_up" }, { t = "Collect honey", a = "hive_collect" } } },
+			{ name = "House", emoji = "🏠", color = Color3.fromRGB(170, 120, 90), acts = { { t = "Upgrade house", a = "house_up" }, { t = "Collect rent", a = "house_rent" }, { t = "Buy decor", a = "house_decor" } } },
+		}
+		for n, st in stations do
+			local hx = -180 + (n - 1) * 90
+			local hut = mkPart("Home_" .. st.name, Vector3.new(10, 12, 10), CFrame.new(hx, 6, HOME_Z), st.color, rootF)
+			mkBillboard(hut, 12, 2, 8).Text = st.emoji .. " " .. st.name
+			for j, act in st.acts do
+				local px = hx + (j - (#st.acts + 1) / 2) * 7
+				local pad = mkPart("HomeAct_" .. act.a, Vector3.new(5, 1.4, 5), CFrame.new(px, 0.7, HOME_Z - 12), st.color, rootF)
+				local pr = mkPrompt(pad, act.t, "homestead")
+				pr:SetAttribute("act", act.a)
+				mkBillboard(pad, 5, 1.2, 3).Text = act.t
+			end
+		end
+	end
+
 	mkLamppost(-WorldLayout.PLAZA_RADIUS, WorldLayout.PLAZA_Z, rootF)
 	mkLamppost(WorldLayout.PLAZA_RADIUS, WorldLayout.PLAZA_Z, rootF)
 

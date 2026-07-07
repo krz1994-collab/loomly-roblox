@@ -28,6 +28,15 @@ local GatherRules = require("../src/shared/GatherRules")
 local TreasureRules = require("../src/shared/TreasureRules")
 local EventRules = require("../src/shared/EventRules")
 local Events = require("../src/shared/data/Events")
+local ProduceRules = require("../src/shared/ProduceRules")
+local HouseRules = require("../src/shared/HouseRules")
+local AnimalRules = require("../src/shared/AnimalRules")
+local CookRules = require("../src/shared/CookRules")
+local Trees = require("../src/shared/data/Trees")
+local Animals = require("../src/shared/data/Animals")
+local Recipes = require("../src/shared/data/Recipes")
+local Bees = require("../src/shared/data/Bees")
+local House = require("../src/shared/data/House")
 
 local passed, failed = 0, 0
 local function check(name: string, cond: boolean)
@@ -224,7 +233,7 @@ local function tmpl(): any
 	for _ = 1, 6 do
 		table.insert(plots, { seedId = nil, readyAt = nil })
 	end
-	return { coins = 20, lifetimeEarned = 0, harvests = 0, xp = 0, codex = {}, inventory = {}, plots = plots, rebirths = 0, daily = { day = 0, streak = 0 }, quests = { done = {}, active = {} }, unlocks = {}, upgrades = {}, treasuresFound = {} }
+	return { coins = 20, lifetimeEarned = 0, harvests = 0, xp = 0, codex = {}, inventory = {}, plots = plots, rebirths = 0, daily = { day = 0, streak = 0 }, quests = { done = {}, active = {} }, unlocks = {}, upgrades = {}, treasuresFound = {}, orchard = {}, animals = {}, kitchen = { recipeId = nil, doneAt = nil }, bees = { level = 0, lastCollect = 0 }, house = { tier = 0, lastRent = 0, decor = {} } }
 end
 do
 	local st: any = {
@@ -240,6 +249,11 @@ do
 		unlocks = { boat = true },
 		upgrades = { plots = 2, sellBonus = 1 },
 		treasuresFound = { t_1_1 = true },
+		orchard = { ["1"] = { treeId = "apple", lastPick = 1700000000 } },
+		animals = { ["1"] = { animalId = "chicken", lastCollect = 1700000000 } },
+		kitchen = { recipeId = "pie", doneAt = 1700000500 },
+		bees = { level = 2, lastCollect = 1700000000 },
+		house = { tier = 3, lastRent = 1700000000, decor = { rug = 2, lamp = 1 } },
 		plots = {
 			{ seedId = "radish", readyAt = 1700000000 },
 			{ seedId = nil, readyAt = nil },
@@ -611,6 +625,67 @@ do
 		cd[e.id] = 9999
 	end
 	check("all-on-cooldown -> nil", EventRules.pickEvent(Events.list, cr(0.5), 1000, true, cd) == nil)
+end
+
+-- ---- ProduceRules: shared time-accrual (orchard/animals/bees/rent) ----
+do
+	eq("no time passed -> 0 ready", ProduceRules.readyCount(1000, 1000, 60, 5), 0)
+	eq("3 cycles passed -> 3 ready", ProduceRules.readyCount(1000, 1000 + 190, 60, 5), 3)
+	eq("accrual caps at cap", ProduceRules.readyCount(1000, 1000 + 10000, 60, 5), 5)
+	eq("cycleSec 0 guard -> 0", ProduceRules.readyCount(1000, 2000, 0, 5), 0)
+	-- collect under cap carries the sub-cycle remainder (no lost progress)
+	local n, newLast = ProduceRules.collect(1000, 1000 + 190, 60, 5) -- 3 whole cycles + 10s remainder
+	eq("collect under cap: count", n, 3)
+	eq("collect under cap: lastAt carries remainder", newLast, 1000 + 180)
+	-- collect over cap discards overflow, resets clock to now
+	local n2, newLast2 = ProduceRules.collect(1000, 1000 + 10000, 60, 5)
+	eq("collect over cap: count = cap", n2, 5)
+	eq("collect over cap: lastAt jumps to now", newLast2, 1000 + 10000)
+	-- collecting twice quickly yields nothing the second time
+	local n3 = ProduceRules.readyCount(newLast, 1000 + 190, 60, 5)
+	eq("no double-collect", n3, 0)
+end
+
+-- ---- Blocks 7-10: house rent, breeding, cooking, data sanity ----
+do
+	-- House rent: base + decor, capped
+	local rpm = HouseRules.rentPerMin(7, { rug = 2, lamp = 1 }, House.decorList) -- 7 + rug(1)*2 + lamp(2)*1 = 11
+	eq("house rentPerMin sums decor", rpm, 11)
+	eq("house rentDue = min(cap, rate*minutes)", HouseRules.rentDue(0, 600, 12, 900), 120) -- 10 min * 12
+	eq("house rentDue caps", HouseRules.rentDue(0, 100000, 12, 900), 900)
+	eq("house rentDue no time -> 0", HouseRules.rentDue(1000, 1000, 12, 900), 0)
+
+	-- Breeding: same tier stays or bumps rarer by rand
+	eq("breed no-bump keeps tier", AnimalRules.offspringTier(2, 2, function() return 0.9 end), 2)
+	eq("breed bump gives rarer", AnimalRules.offspringTier(2, 2, function() return 0.1 end), 3)
+	eq("breed uses max parent tier", AnimalRules.offspringTier(1, 3, function() return 0.9 end), 3)
+
+	-- Cooking: need-check + consume
+	local inv = { ["carrot|normal"] = 2, ["radish|normal"] = 1 }
+	local salad = Recipes.get("salad")
+	check("canCook true when ingredients present", CookRules.canCook(inv, salad))
+	CookRules.consume(inv, salad)
+	eq("consume decrements carrot", inv["carrot|normal"], 1)
+	check("consume clears radish to nil", inv["radish|normal"] == nil)
+	check("canCook false when short", not CookRules.canCook(inv, salad))
+	check("isDone true at/after doneAt", CookRules.isDone(500, 500))
+	check("isDone false before doneAt", not CookRules.isDone(500, 499))
+	check("isDone false when idle (nil)", not CookRules.isDone(nil, 999))
+
+	-- Data sanity: every producer well-formed
+	check("8 trees, all with fruit + positive cycle", (function()
+		if #Trees.list ~= 8 then return false end
+		for _, t in Trees.list do
+			if t.cycleSec <= 0 or t.cap <= 0 or t.fruitSell <= 0 then return false end
+		end
+		return true
+	end)())
+	check("8 animals with products", #Animals.list == 8 and Animals.get("chicken") ~= nil)
+	check("firstOfTier finds a rarer animal", (Animals.firstOfTier(5) :: any).id == "unicorn")
+	check("8 recipes, salad needs carrot", #Recipes.list == 8 and Recipes.get("salad").needs["carrot|normal"] == 1)
+	check("bees upgrade cost climbs then nils at max", Bees.upgradeCost(0) == 1500 and Bees.upgradeCost(Bees.MAX) == nil)
+	check("bees pollination scales with level", Bees.pollinationMult(0) == 1 and Bees.pollinationMult(5) > 1)
+	check("house tiers 0..MAX present, upgrade nils at max", House.tierData(0) ~= nil and House.tierData(House.MAX) ~= nil and House.upgradeCost(House.MAX) == nil)
 end
 
 print(string.format("\n%d passed, %d failed", passed, failed))
