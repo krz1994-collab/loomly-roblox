@@ -28,6 +28,7 @@ export type PlayerState = {
 	daily: { day: number, streak: number }, -- daily-login streak state
 	quests: { done: { [string]: boolean }, active: { [string]: { step: number, prog: number } } },
 	unlocks: { [string]: boolean }, -- boats/islands/features unlocked via quest rewards
+	upgrades: { [string]: number }, -- upgrade track -> level
 }
 
 local SaveSchema = {}
@@ -72,6 +73,7 @@ function SaveSchema.serialize(state: PlayerState): any
 		daily = deepCopy(state.daily),
 		quests = deepCopy(state.quests),
 		unlocks = deepCopy(state.unlocks),
+		upgrades = deepCopy(state.upgrades),
 	}
 end
 
@@ -112,6 +114,16 @@ function SaveSchema.validate(candidate: any, template: PlayerState): PlayerState
 		for k, v in t.unlocks do
 			if type(k) == "string" and v == true then
 				out.unlocks[k] = true
+			end
+		end
+	end
+
+	-- upgrades: map of string->non-negative integer level
+	out.upgrades = {}
+	if type(t.upgrades) == "table" then
+		for k, v in t.upgrades do
+			if type(k) == "string" and isNonNegNumber(v) then
+				out.upgrades[k] = math.floor(v)
 			end
 		end
 	end

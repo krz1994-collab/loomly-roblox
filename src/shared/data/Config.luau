@@ -13,7 +13,8 @@ local Config = {
 	-- NOTE: this doubles as "owned plot count" for unlock rules of type `plot`
 	-- (see Plants.isUnlocked). The plot shop (L4) will make this per-player + buyable up to ~18
 	-- (matching the web game). For now every player gets a generous starting farm.
-	PLOT_COUNT = 12,
+	PLOT_COUNT = 12, -- max crop pads built per plot (the ceiling the "plots" upgrade climbs to)
+	BASE_PLOTS = 6, -- plots a new player owns before buying the "plots" upgrade (owned = BASE + level)
 
 	-- Server pushes each player's farm state to their client on this cadence so the
 	-- "growing / ready" readout and countdown stay live. A production build would push

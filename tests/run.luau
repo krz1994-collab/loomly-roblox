@@ -22,6 +22,8 @@ local PlotRules = require("../src/shared/PlotRules")
 local Catalog = require("../src/shared/data/Catalog")
 local QuestRules = require("../src/shared/QuestRules")
 local Quests = require("../src/shared/data/Quests")
+local UpgradeRules = require("../src/shared/UpgradeRules")
+local Upgrades = require("../src/shared/data/Upgrades")
 
 local passed, failed = 0, 0
 local function check(name: string, cond: boolean)
@@ -218,7 +220,7 @@ local function tmpl(): any
 	for _ = 1, 6 do
 		table.insert(plots, { seedId = nil, readyAt = nil })
 	end
-	return { coins = 20, lifetimeEarned = 0, harvests = 0, xp = 0, codex = {}, inventory = {}, plots = plots, rebirths = 0, daily = { day = 0, streak = 0 }, quests = { done = {}, active = {} }, unlocks = {} }
+	return { coins = 20, lifetimeEarned = 0, harvests = 0, xp = 0, codex = {}, inventory = {}, plots = plots, rebirths = 0, daily = { day = 0, streak = 0 }, quests = { done = {}, active = {} }, unlocks = {}, upgrades = {} }
 end
 do
 	local st: any = {
@@ -232,6 +234,7 @@ do
 		daily = { day = 100, streak = 3 },
 		quests = { done = { tut_01 = true }, active = { tut_02 = { step = 1, prog = 1 } } },
 		unlocks = { boat = true },
+		upgrades = { plots = 2, sellBonus = 1 },
 		plots = {
 			{ seedId = "radish", readyAt = 1700000000 },
 			{ seedId = nil, readyAt = nil },
@@ -465,6 +468,29 @@ do
 	end
 	check("all quests: unique id + valid givers + known step verbs", ok)
 	check("starter quest set has >= 40 rows", #Quests.list >= 40)
+end
+
+-- ---- UpgradeRules: geometric cost + per-level effect + buy transaction ----
+do
+	local plots = Upgrades.get("plots") :: any
+	local sell = Upgrades.get("sellBonus") :: any
+	eq("plots L0 cost = baseCost", UpgradeRules.costForLevel(plots, 0), 250)
+	eq("plots L1 cost = base*growth", UpgradeRules.costForLevel(plots, 1), 500)
+	eq("plots L2 cost = base*growth^2", UpgradeRules.costForLevel(plots, 2), 1000)
+	check("cost strictly rises with level", UpgradeRules.costForLevel(sell, 3) > UpgradeRules.costForLevel(sell, 2))
+	eq("plots effect at L0 = 6", UpgradeRules.effectAt(plots, 0), 6)
+	eq("plots effect at L6 = 12", UpgradeRules.effectAt(plots, 6), 12)
+	eq("sellBonus effect at L4 = 1.2", UpgradeRules.effectAt(sell, 4), 1.2)
+
+	local st: any = { coins = 250, upgrades = {} }
+	local ok, lvl = UpgradeRules.buy(st, plots)
+	check("buy succeeds when affordable", ok and lvl == 1 and st.coins == 0)
+	check("buy fails when broke", not (UpgradeRules.buy(st, plots)))
+	eq("level recorded", UpgradeRules.levelOf(st, "plots"), 1)
+	-- maxed
+	local rich: any = { coins = 1e9, upgrades = { plots = plots.maxLevel } }
+	check("cannot buy past maxLevel", not (UpgradeRules.buy(rich, plots)))
+	check("isMaxed true at maxLevel", UpgradeRules.isMaxed(plots, plots.maxLevel))
 end
 
 print(string.format("\n%d passed, %d failed", passed, failed))

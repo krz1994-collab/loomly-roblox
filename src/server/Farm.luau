@@ -9,7 +9,18 @@ local Plants = require(ReplicatedStorage.Bloomly.data.Plants)
 local Mutations = require(ReplicatedStorage.Bloomly.data.Mutations)
 local Config = require(ReplicatedStorage.Bloomly.data.Config)
 local Rules = require(ReplicatedStorage.Bloomly.Rules) -- the pure, VPS-tested loop core
+local UpgradeRules = require(ReplicatedStorage.Bloomly.UpgradeRules)
+local Upgrades = require(ReplicatedStorage.Bloomly.data.Upgrades)
 local PlayerData = require(script.Parent.PlayerData)
+
+-- Effect value of an upgrade track for this player (1.0 / base if unbought).
+local function upEffect(state: PlayerData.PlayerState, trackId: string): number
+	local track = Upgrades.get(trackId)
+	if not track then
+		return 1
+	end
+	return UpgradeRules.effectAt(track, (state.upgrades and state.upgrades[trackId]) or 0)
+end
 
 type PlayerState = PlayerData.PlayerState
 
@@ -80,7 +91,7 @@ function Farm.plant(state: PlayerState, seedId: string, plotIndex: number, owned
 	end
 	state.coins -= plant.cost
 	plot.seedId = seedId
-	plot.readyAt = Rules.readyAt(now(), plant.growMs) -- grow timer is server-owned (pure math in Rules)
+	plot.readyAt = Rules.readyAt(now(), plant.growMs / upEffect(state, "growSpeed")) -- Fast-Growth upgrade
 	return true, "ok"
 end
 
@@ -100,7 +111,7 @@ function Farm.harvest(state: PlayerState, plotIndex: number): (boolean, string, 
 		return false, "not_ready", nil -- server says it's still growing; client cannot override
 	end
 	local seedId = plot.seedId :: string
-	local mutationId = Farm.rollMutation() -- SERVER decides the outcome
+	local mutationId = Farm.rollMutation(upEffect(state, "luck")) -- SERVER decides; Lucky-Charm boosts odds
 	local key = invKey(seedId, mutationId)
 	state.inventory[key] = (state.inventory[key] or 0) + 1
 	state.harvests += 1
@@ -138,7 +149,7 @@ function Farm.sellAll(state: PlayerState): (boolean, number)
 	if gained <= 0 then
 		return false, 0 -- nothing sellable
 	end
-	gained = math.floor(gained * Rules.coinMult(state.rebirths or 0)) -- prestige: +10% per rebirth
+	gained = math.floor(gained * Rules.coinMult(state.rebirths or 0) * upEffect(state, "sellBonus")) -- prestige + Market-Deal upgrade
 	state.coins += gained
 	state.lifetimeEarned += gained -- lifetimeEarned only ever grows; drives "earned" unlocks
 	table.clear(state.inventory)
@@ -154,6 +165,7 @@ function Farm.buildView(state: PlayerState, ownedPlots: number)
 
 	local plots = {}
 	for i, plot in state.plots do
+		local locked = i > ownedPlots -- pads beyond your owned count -> buy the Farm Plots upgrade
 		if plot.seedId then
 			local plant = Plants.get(plot.seedId)
 			local secondsLeft = math.max(0, math.ceil((plot.readyAt :: number) - t))
@@ -163,9 +175,10 @@ function Farm.buildView(state: PlayerState, ownedPlots: number)
 				emoji = if plant then plant.emoji else "?",
 				ready = secondsLeft <= 0,
 				secondsLeft = secondsLeft,
+				locked = locked,
 			}
 		else
-			plots[i] = { index = i, seedId = nil, emoji = "", ready = false, secondsLeft = 0 }
+			plots[i] = { index = i, seedId = nil, emoji = "", ready = false, secondsLeft = 0, locked = locked }
 		end
 	end
 

@@ -59,6 +59,7 @@ export type PlayerState = {
 	daily: { day: number, streak: number }, -- daily-login streak
 	quests: { done: { [string]: boolean }, active: { [string]: { step: number, prog: number } } },
 	unlocks: { [string]: boolean }, -- boats/islands/features from quest rewards
+	upgrades: { [string]: number }, -- upgrade track -> level
 }
 
 local PlayerData = {}
@@ -84,6 +85,7 @@ local function makeDefault(): PlayerState
 		daily = { day = 0, streak = 0 },
 		quests = { done = {}, active = {} },
 		unlocks = {},
+		upgrades = {},
 	}
 end
 

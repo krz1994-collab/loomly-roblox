@@ -18,6 +18,8 @@ local PlotRules = require(ReplicatedStorage.Bloomly.PlotRules)
 local Rules = require(ReplicatedStorage.Bloomly.Rules)
 local WorldLayout = require(ReplicatedStorage.Bloomly.data.WorldLayout)
 local Catalog = require(ReplicatedStorage.Bloomly.data.Catalog)
+local UpgradeRules = require(ReplicatedStorage.Bloomly.UpgradeRules)
+local Upgrades = require(ReplicatedStorage.Bloomly.data.Upgrades)
 local PlayerData = require(script.PlayerData)
 local Farm = require(script.Farm)
 local PlotClaim = require(script.PlotClaim)
@@ -30,9 +32,11 @@ World.build()
 -- The seed each player wants the next Plant prompt to use (transient preference; never saved).
 local selectedSeed: { [number]: string } = {}
 
--- Every player owns Config.PLOT_COUNT plots. This becomes per-player when the plot shop lands (L4).
-local function ownedPlotsFor(_player: Player): number
-	return Config.PLOT_COUNT
+-- Owned plots = BASE_PLOTS + the "plots" upgrade level, capped at the built pad count (PLOT_COUNT).
+local function ownedPlotsFor(player: Player): number
+	local state = PlayerData.get(player)
+	local lvl = (state and state.upgrades and state.upgrades.plots) or 0
+	return math.min(Config.PLOT_COUNT, Config.BASE_PLOTS + lvl)
 end
 
 -- Competitive leaderboard: Coins + Level show on the player list (rywalizacja between players).
@@ -129,7 +133,8 @@ local function applyVehicleSpeed(player: Player)
 		return
 	end
 	local veh = vehicleById(state.vehicle)
-	hum.WalkSpeed = BASE_WALKSPEED * (veh and veh.speed or 1)
+	local walkUp = UpgradeRules.effectAt(Upgrades.get("walkSpeed") :: any, (state.upgrades and state.upgrades.walkSpeed) or 0)
+	hum.WalkSpeed = BASE_WALKSPEED * (veh and veh.speed or 1) * walkUp
 end
 
 -- Generic teleport (used by harbor sailing). Streams the destination in first (huge map).
@@ -294,6 +299,10 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 		if not PlotRules.canInteract(PlotClaim.ownerOfSection(section), player.UserId) then
 			return
 		end
+		if plotIndex > ownedPlotsFor(player) then
+			Remotes.Notify:FireClient(player, "🔒 Buy the 🌱 Farm Plots upgrade (at the plaza) to unlock this pad!")
+			return
+		end
 		local plot = state.plots[plotIndex]
 		local changed = false
 		if plot and plot.seedId == nil then
@@ -355,7 +364,23 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 			state.daily = { day = day, streak = streak }
 			state.coins += reward
 			state.lifetimeEarned += reward
+			Remotes.Notify:FireClient(player, "🎁 Daily gift: +" .. reward .. "c! (streak " .. streak .. ")")
 			pushState(player)
+		end
+	elseif kind == "upgrade" then
+		-- VALIDATES: track exists, not maxed, affordable. Server debits + bumps the level (UpgradeRules).
+		local trackId = prompt:GetAttribute("track")
+		local track = if type(trackId) == "string" then Upgrades.get(trackId) else nil
+		if track then
+			local ok = UpgradeRules.buy(state, track)
+			if ok then
+				if trackId == "walkSpeed" then
+					applyVehicleSpeed(player)
+				end
+				Quest.report(player, "upgrade", trackId :: string, 1)
+				Remotes.Notify:FireClient(player, "⬆️ Upgraded " .. track.name .. " to Lv " .. (state.upgrades[trackId] or 0) .. "!")
+				pushState(player)
+			end
 		end
 	end
 end)

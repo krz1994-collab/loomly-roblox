@@ -9,6 +9,7 @@ local Config = require(ReplicatedStorage.Bloomly.data.Config)
 local WorldLayout = require(ReplicatedStorage.Bloomly.data.WorldLayout)
 local Catalog = require(ReplicatedStorage.Bloomly.data.Catalog)
 local Npcs = require(ReplicatedStorage.Bloomly.data.Npcs)
+local Upgrades = require(ReplicatedStorage.Bloomly.data.Upgrades)
 
 local World = {}
 
@@ -184,6 +185,15 @@ function World.build()
 			mkBillboard(stand, 6, 1.6, 4).Text = veh.emoji .. " " .. veh.name
 		end
 	end
+	do -- upgrade kiosk: a stand per upgrade track
+		for idx, track in Upgrades.list do
+			local sx = (idx - (#Upgrades.list + 1) / 2) * 16
+			local stand = mkPart("Upgrade_" .. track.id, Vector3.new(7, 6, 5), CFrame.new(sx, 3.5, WorldLayout.PLAZA_Z + 40), Color3.fromRGB(90, 140, 200), rootF)
+			local pr = mkPrompt(stand, "Upgrade " .. track.name, "upgrade")
+			pr:SetAttribute("track", track.id)
+			mkBillboard(stand, 7, 1.6, 5).Text = track.emoji .. " " .. track.name
+		end
+	end
 	do -- retention NPCs
 		local rebirth = mkPart("RebirthShrine", Vector3.new(6, 10, 6), CFrame.new(-62, 5, WorldLayout.PLAZA_Z), Color3.fromRGB(180, 120, 205), rootF, Enum.Material.Neon)
 		mkPrompt(rebirth, "Rebirth (+10% coins forever)", "rebirth")
@@ -317,7 +327,11 @@ function World.renderSection(section: number, ownerName: string, view: any)
 	for j = 1, Config.PLOT_COUNT do
 		local pad = s.pads[j]
 		local p = view.plots[j]
-		if not p or p.seedId == nil then
+		if p and p.locked then
+			pad.pad.Color = Color3.fromRGB(70, 70, 75)
+			pad.cropLabel.Text = "🔒"
+			pad.prompt.Enabled = false
+		elseif not p or p.seedId == nil then
 			pad.pad.Color = C_EMPTY
 			pad.cropLabel.Text = ""
 			pad.prompt.ActionText = "Plant"
