@@ -14,6 +14,7 @@ local Remotes = require(ReplicatedStorage.Bloomly.Remotes)
 local MapData = require(ReplicatedStorage.Bloomly.data.MapData)
 local MapRules = require(ReplicatedStorage.Bloomly.MapRules)
 local WorldLayout = require(ReplicatedStorage.Bloomly.data.WorldLayout)
+local Tutorials = require(ReplicatedStorage.Bloomly.data.Tutorials)
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -626,6 +627,62 @@ RunService.Heartbeat:Connect(function()
 	end
 	updateFarmDots()
 end)
+
+-- ================= HELP / GUIDE (block 2) =================
+-- A "?" button opens a scrollable guide built from the Tutorials data -- every mechanic explained so a
+-- kid can always look up "how do I collect this?".
+local helpBtn = mkBtn(gui, "❓ Help", 80, Color3.fromRGB(200, 160, 70))
+helpBtn.Position = UDim2.new(1, -104, 0, 272)
+
+local helpPanel = Instance.new("Frame")
+helpPanel.Size = UDim2.new(0, 420, 0, 420)
+helpPanel.Position = UDim2.new(0.5, -210, 0.5, -210)
+helpPanel.BackgroundColor3 = Color3.fromRGB(28, 36, 30)
+helpPanel.BorderSizePixel = 0
+helpPanel.Visible = false
+helpPanel.ZIndex = 20
+helpPanel.Parent = gui
+do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 10); c.Parent = helpPanel end
+local helpTitle = Instance.new("TextLabel")
+helpTitle.Size = UDim2.new(1, 0, 0, 30)
+helpTitle.BackgroundTransparency = 1
+helpTitle.TextColor3 = Color3.fromRGB(240, 245, 230)
+helpTitle.Font = Enum.Font.GothamBold
+helpTitle.TextSize = 17
+helpTitle.Text = "📖 How to Play Bloomly"
+helpTitle.ZIndex = 21
+helpTitle.Parent = helpPanel
+local helpScroll = Instance.new("ScrollingFrame")
+helpScroll.Size = UDim2.new(1, -16, 1, -76)
+helpScroll.Position = UDim2.new(0, 8, 0, 34)
+helpScroll.BackgroundTransparency = 1
+helpScroll.BorderSizePixel = 0
+helpScroll.ScrollBarThickness = 6
+helpScroll.CanvasSize = UDim2.new(0, 0, 0, #Tutorials.list * 58)
+helpScroll.ZIndex = 21
+helpScroll.Parent = helpPanel
+local hsl = Instance.new("UIListLayout"); hsl.Padding = UDim.new(0, 4); hsl.Parent = helpScroll
+for _, t in Tutorials.list do
+	local row = Instance.new("TextLabel")
+	row.Size = UDim2.new(1, -6, 0, 54)
+	row.BackgroundColor3 = Color3.fromRGB(38, 48, 40)
+	row.TextColor3 = Color3.fromRGB(225, 235, 220)
+	row.Font = Enum.Font.Gotham
+	row.TextSize = 13
+	row.TextXAlignment = Enum.TextXAlignment.Left
+	row.TextYAlignment = Enum.TextYAlignment.Top
+	row.TextWrapped = true
+	row.Text = t.emoji .. " " .. t.title .. "\n" .. t.hint
+	row.ZIndex = 22
+	row.Parent = helpScroll
+	do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 6); c.Parent = row local p = Instance.new("UIPadding"); p.PaddingLeft = UDim.new(0, 8); p.PaddingTop = UDim.new(0, 4); p.Parent = row end
+end
+local helpClose = mkBtn(helpPanel, "Close", 200, Color3.fromRGB(120, 90, 90))
+helpClose.Position = UDim2.new(0.5, -100, 1, -36)
+helpClose.Size = UDim2.new(0, 200, 0, 30)
+helpClose.ZIndex = 22
+helpClose.Activated:Connect(function() helpPanel.Visible = false end)
+helpBtn.Activated:Connect(function() helpPanel.Visible = not helpPanel.Visible end)
 
 local ok, view = pcall(function()
 	return Remotes.GetState:InvokeServer()

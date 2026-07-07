@@ -68,6 +68,7 @@ export type PlayerState = {
 	house: { tier: number, lastRent: number, decor: { [string]: number } }, -- house + rent (block 10)
 	achievements: { [string]: boolean }, -- earned achievements (block 14)
 	museum: { [string]: boolean }, -- donated inventory keys (block 14)
+	tutorialsSeen: { [string]: boolean }, -- tutorials already shown (block 2)
 }
 
 local PlayerData = {}
@@ -102,6 +103,7 @@ local function makeDefault(): PlayerState
 		house = { tier = 0, lastRent = 0, decor = {} },
 		achievements = {},
 		museum = {},
+		tutorialsSeen = {},
 	}
 end
 

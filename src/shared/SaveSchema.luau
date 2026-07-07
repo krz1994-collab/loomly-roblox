@@ -38,6 +38,7 @@ export type PlayerState = {
 	house: { tier: number, lastRent: number, decor: { [string]: number } }, -- house tier + passive rent + decor placed
 	achievements: { [string]: boolean }, -- earned achievement ids (block 14)
 	museum: { [string]: boolean }, -- donated inventory keys (block 14)
+	tutorialsSeen: { [string]: boolean }, -- tutorials already shown (block 2)
 }
 
 local SaveSchema = {}
@@ -91,6 +92,7 @@ function SaveSchema.serialize(state: PlayerState): any
 		house = deepCopy(state.house),
 		achievements = deepCopy(state.achievements),
 		museum = deepCopy(state.museum),
+		tutorialsSeen = deepCopy(state.tutorialsSeen),
 	}
 end
 
@@ -236,6 +238,14 @@ function SaveSchema.validate(candidate: any, template: PlayerState): PlayerState
 		for k, v in t.museum do
 			if type(k) == "string" and v == true then
 				out.museum[k] = true
+			end
+		end
+	end
+	out.tutorialsSeen = {}
+	if type(t.tutorialsSeen) == "table" then
+		for k, v in t.tutorialsSeen do
+			if type(k) == "string" and v == true then
+				out.tutorialsSeen[k] = true
 			end
 		end
 	end

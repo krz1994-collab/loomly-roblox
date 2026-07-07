@@ -45,6 +45,8 @@ local CommandRules = require("../src/shared/CommandRules")
 local Commands = require("../src/shared/data/Commands")
 local MapRules = require("../src/shared/MapRules")
 local Premium = require("../src/shared/data/Premium")
+local TutorialRules = require("../src/shared/TutorialRules")
+local Tutorials = require("../src/shared/data/Tutorials")
 
 local passed, failed = 0, 0
 local function check(name: string, cond: boolean)
@@ -243,7 +245,7 @@ local function tmpl(): any
 	for _ = 1, 6 do
 		table.insert(plots, { seedId = nil, readyAt = nil })
 	end
-	return { coins = 20, lifetimeEarned = 0, harvests = 0, xp = 0, codex = {}, inventory = {}, plots = plots, rebirths = 0, daily = { day = 0, streak = 0 }, quests = { done = {}, active = {} }, unlocks = {}, upgrades = {}, treasuresFound = {}, orchard = {}, animals = {}, kitchen = { recipeId = nil, doneAt = nil }, bees = { level = 0, lastCollect = 0 }, house = { tier = 0, lastRent = 0, decor = {} }, achievements = {}, museum = {} }
+	return { coins = 20, lifetimeEarned = 0, harvests = 0, xp = 0, codex = {}, inventory = {}, plots = plots, rebirths = 0, daily = { day = 0, streak = 0 }, quests = { done = {}, active = {} }, unlocks = {}, upgrades = {}, treasuresFound = {}, orchard = {}, animals = {}, kitchen = { recipeId = nil, doneAt = nil }, bees = { level = 0, lastCollect = 0 }, house = { tier = 0, lastRent = 0, decor = {} }, achievements = {}, museum = {}, tutorialsSeen = {} }
 end
 do
 	local st: any = {
@@ -266,6 +268,7 @@ do
 		house = { tier = 3, lastRent = 1700000000, decor = { rug = 2, lamp = 1 } },
 		achievements = { first_harvest = true },
 		museum = { ["radish|normal"] = true },
+		tutorialsSeen = { welcome = true, plant = true },
 		plots = {
 			{ seedId = "radish", readyAt = 1700000000 },
 			{ seedId = nil, readyAt = nil },
@@ -774,6 +777,19 @@ do
 	check("settle gave carrots to A", invA["carrot|normal"] == 2)
 	check("settle cleared escrows", next(escA) == nil and next(escB) == nil)
 	eq("CONSERVED after settle (no dupe/vanish)", grandTotal(), START)
+end
+
+-- ---- TutorialRules + coverage (block 2) ----
+do
+	local seen: { [string]: boolean } = {}
+	check("fresh tutorial should trigger", TutorialRules.shouldTrigger("plant", seen))
+	check("markSeen returns true first time", TutorialRules.markSeen("plant", seen))
+	check("markSeen returns false second time", not TutorialRules.markSeen("plant", seen))
+	check("seen tutorial no longer triggers", not TutorialRules.shouldTrigger("plant", seen))
+	-- COVERAGE: every activity has a tutorial row (no mechanic ships unexplained)
+	check("every activity has a tutorial", TutorialRules.coverageOk(Tutorials.ACTIVITIES, Tutorials.list))
+	-- and a missing one is caught
+	check("coverage catches a gap", not TutorialRules.coverageOk({ "plant", "nonexistent_activity" }, Tutorials.list))
 end
 
 -- ---- Premium: STRICT no-pay-to-win contract (block 16) ----

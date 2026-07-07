@@ -242,6 +242,10 @@ function World.build()
 		local boutique = mkPart("PremiumShop", Vector3.new(8, 11, 7), CFrame.new(95, 5.5, WorldLayout.PLAZA_Z + 30), Color3.fromRGB(230, 180, 220), rootF, Enum.Material.Neon)
 		mkPrompt(boutique, "Browse Premium", "premium")
 		mkBillboard(boutique, 10, 1.8, 7).Text = "✨ Premium — cosmetics only"
+		-- Bloomy the mascot: greets new players; press the ❓ Help button anytime (block 2).
+		local bloomy = mkPart("Bloomy", Vector3.new(4, 6, 4), CFrame.new(10, 4, WorldLayout.PLAZA_Z - 10), Color3.fromRGB(120, 220, 120), rootF, Enum.Material.Neon)
+		bloomy.Shape = Enum.PartType.Ball
+		mkBillboard(bloomy, 8, 1.6, 5).Text = "🌱 Bloomy — press ❓ Help!"
 	end
 
 	-- Homestead village (blocks 7-10): a row of stations behind the plaza. Each is a labelled hut with

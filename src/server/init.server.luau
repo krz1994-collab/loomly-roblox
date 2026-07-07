@@ -30,6 +30,8 @@ local Achievements = require(ReplicatedStorage.Bloomly.data.Achievements)
 local CommandRules = require(ReplicatedStorage.Bloomly.CommandRules)
 local Commands = require(ReplicatedStorage.Bloomly.data.Commands)
 local Premium = require(ReplicatedStorage.Bloomly.data.Premium)
+local TutorialRules = require(ReplicatedStorage.Bloomly.TutorialRules)
+local Tutorials = require(ReplicatedStorage.Bloomly.data.Tutorials)
 
 local gatherRng = Random.new()
 local function gatherRand(): number
@@ -116,6 +118,30 @@ local function checkAchievements(player: Player, state: any)
 		Remotes.Notify:FireClient(player, "🏅 Achievement: " .. a.emoji .. " " .. a.name .. "! (+" .. a.reward .. "c)")
 	end
 end
+
+-- Bloomy the mascot: the FIRST time a player meets an activity, send its coaching line (once). Pure
+-- decision in TutorialRules; recorded in state.tutorialsSeen (persisted).
+local function tut(player: Player, state: any, id: string)
+	if TutorialRules.shouldTrigger(id, state.tutorialsSeen) then
+		TutorialRules.markSeen(id, state.tutorialsSeen)
+		local t = Tutorials.get(id)
+		if t then
+			Remotes.Notify:FireClient(player, t.emoji .. " " .. t.mascotLine)
+		end
+	end
+end
+
+-- Which tutorial a prompt kind / homestead act teaches (first-time coaching).
+local PROMPT_TUT: { [string]: string } = {
+	talk = "quests", sell = "sell", plot = "plant", sail = "sail", buyboat = "sail",
+	rebirth = "rebirth", dailygift = "daily", fish = "fish", catch_bug = "catch_bug",
+	mine = "mine", forage = "forage", treasure = "treasure", museum = "museum", upgrade = "upgrade",
+}
+local HOME_TUT: { [string]: string } = {
+	orchard_plant = "orchard", orchard_pick = "orchard", pen_buy = "animals", pen_collect = "animals",
+	pen_breed = "breed", cook_start = "cook", cook_collect = "cook", hive_up = "bees", hive_collect = "bees",
+	house_up = "house", house_rent = "house", house_decor = "decorate",
+}
 
 -- Send a player their authoritative view AND render their garden into the 3D world so EVERYONE sees
 -- it. The view is the single source of truth; the 3D crops are just another renderer of it.
@@ -302,6 +328,11 @@ local function onPlayerAdded(player: Player)
 	setupLeaderstats(player, state) -- Coins + Level on the player list
 	selectedSeed[player.UserId] = "radish" -- sensible default so the first Plant prompt just works
 	pushState(player) -- renders the plot's crops + fills the client HUD
+	task.delay(3, function()
+		if PlayerData.get(player) then
+			tut(player, state, "welcome") -- Bloomy greets brand-new players
+		end
+	end)
 	player.CharacterAdded:Connect(function()
 		task.wait(0.4) -- let the character finish loading before we move it
 		teleportToYard(player)
@@ -437,6 +468,18 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 		return
 	end
 	local kind = prompt:GetAttribute("kind")
+
+	-- First-time coaching: fire the matching tutorial before we run the action.
+	do
+		local tutId = PROMPT_TUT[kind]
+		if kind == "homestead" then
+			local act = prompt:GetAttribute("act")
+			tutId = if type(act) == "string" then HOME_TUT[act] else nil
+		end
+		if tutId then
+			tut(player, state, tutId)
+		end
+	end
 
 	if kind == "talk" then
 		local npcId = prompt:GetAttribute("npc")
