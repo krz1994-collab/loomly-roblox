@@ -47,7 +47,8 @@ function WorldLayout.plotPadOffset(plotIndex: number, plotCount: number): { x: n
 end
 
 -- ---- islands (reached by boat from the plaza harbor) ----
-WorldLayout.ISLAND_COUNT = 10
+-- 11 islands: 10 biome isles + the Enchanted Forest (index 11, block 15), unlocked latest (L35).
+WorldLayout.ISLAND_COUNT = 11
 WorldLayout.ISLAND_RING = 5000 -- islands sit this far out in the ocean, in a ring
 WorldLayout.ISLAND_SIZE = 600 -- approx landmass diameter
 WorldLayout.MAP_CENTER_Z = 2000 -- roughly the centre of the plot grid; the island ring centres here

@@ -24,7 +24,11 @@ export type Mutation = {
 }
 
 -- Ordered any way you like; Farm sorts by rank for the roll. Kept rarest-first for readability.
+-- 8-tier ladder (block 15): the original 6 + Mythic + Bloomly on top. IDs are STABLE (never renamed)
+-- so existing saved "plant|mutation" inventory/codex keys keep working.
 local Mutations: { Mutation } = {
+	{ id = "bloomly",   chance = 0.00003, mult = 300, rank = 8, vfx = "bloomlyaura", tradeable = true, stack = "highest" },
+	{ id = "mythic",    chance = 0.00015, mult = 120, rank = 7, vfx = "mythicglow",  tradeable = true, stack = "highest" },
 	{ id = "celestial", chance = 0.0005, mult = 50,  rank = 6, vfx = "starfield", tradeable = true, stack = "highest" },
 	{ id = "rainbow",   chance = 0.004,  mult = 20,  rank = 5, vfx = "rainbow",   tradeable = true, stack = "highest" },
 	{ id = "frosted",   chance = 0.01,   mult = 8,   rank = 4, vfx = "frost",     tradeable = true, stack = "highest" },

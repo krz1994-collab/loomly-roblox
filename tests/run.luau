@@ -94,7 +94,7 @@ eq("pumpkin giant sells 500", sellPrice("pumpkin", "giant"), 500)
 eq("starbloom rainbow sells 28000", sellPrice("starbloom", "rainbow"), 28000)
 
 -- ---- Mutation ladder invariants (keeps balance sane as we add tiers) ----
-eq("ladder has 6 tiers", #Mutations.list, 6)
+eq("ladder has 8 tiers", #Mutations.list, 8)
 do
 	local ranks: { [number]: boolean } = {}
 	local rankOk, chanceMonotonic, multMonotonic = true, true, true
@@ -117,7 +117,7 @@ do
 			end
 		end
 	end
-	check("ranks are exactly 1..6", rankOk and ranks[1] and ranks[6])
+	check("ranks are exactly 1..8", rankOk and ranks[1] and ranks[8])
 	check("rarer tiers have strictly lower roll chance", chanceMonotonic)
 	check("rarer tiers have strictly higher value mult", multMonotonic)
 end
@@ -154,7 +154,9 @@ local function constRand(v: number): () -> number
 		return v
 	end
 end
-eq("rand 0.0001 -> celestial (rarest hit)", Rules.rollMutation(ladder, constRand(0.0001), "normal"), "celestial")
+eq("rand 0.00001 -> bloomly (rarest possible)", Rules.rollMutation(ladder, constRand(0.00001), "normal"), "bloomly")
+eq("rand 0.0001 -> mythic (2nd rarest)", Rules.rollMutation(ladder, constRand(0.0001), "normal"), "mythic")
+eq("rand 0.0003 -> celestial", Rules.rollMutation(ladder, constRand(0.0003), "normal"), "celestial")
 eq("rand 0.003 -> rainbow", Rules.rollMutation(ladder, constRand(0.003), "normal"), "rainbow")
 eq("rand 0.03 -> giant", Rules.rollMutation(ladder, constRand(0.03), "normal"), "giant")
 eq("rand 0.9 -> normal (nothing hits)", Rules.rollMutation(ladder, constRand(0.9), "normal"), "normal")
@@ -377,7 +379,8 @@ check("unclaimed section is not interactable", not PlotRules.canInteract(nil, 50
 do
 	local moon = Plants.get("moonberry") :: any
 	local crystal = Plants.get("crystalrose") :: any
-	check("8 plants in the meadow roster", #Plants.list == 8)
+	check("13 plants (8 meadow + 5 enchanted)", #Plants.list == 13)
+	check("wispberry is an enchanted-biome crop", (Plants.get("wispberry") :: any).biome == "enchanted")
 	check("moonberry locked below 10000 earned", not Plants.isUnlocked(moon, { lifetimeEarned = 9999, codex = {} }, 24))
 	check("moonberry unlocks at 10000 earned", Plants.isUnlocked(moon, { lifetimeEarned = 10000, codex = {} }, 24))
 	local codex4 = { ["radish|normal"] = true, ["sunflower|golden"] = true, ["strawberry|normal"] = true, ["pumpkin|giant"] = true }

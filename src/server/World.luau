@@ -109,12 +109,13 @@ end
 local ISLAND_NAMES = {
 	"Sunny Beach", "Whispering Woods", "Frostpeak", "Volcano Isle", "Golden Dunes",
 	"Crystal Cove", "Mushroom Grove", "Windy Cliffs", "Coral Reef", "Misty Highlands",
+	"Enchanted Forest",
 }
 local ISLAND_COLOR = {
 	Color3.fromRGB(232, 214, 150), Color3.fromRGB(70, 130, 70), Color3.fromRGB(225, 235, 245),
 	Color3.fromRGB(90, 60, 55), Color3.fromRGB(224, 196, 120), Color3.fromRGB(150, 130, 200),
 	Color3.fromRGB(120, 160, 90), Color3.fromRGB(140, 150, 130), Color3.fromRGB(120, 190, 180),
-	Color3.fromRGB(150, 160, 170),
+	Color3.fromRGB(150, 160, 170), Color3.fromRGB(150, 90, 210),
 }
 
 -- Build one organic (non-circular) island from overlapping rotated flat boxes.
@@ -133,8 +134,30 @@ local function buildIsland(i: number, center: { x: number, z: number }, parent: 
 		local d = math.abs(S * (0.3 + 0.16 * math.cos(k * 1.9 + i)))
 		mkPart("Land", Vector3.new(w, 6, d), CFrame.new(bx, 1, bz) * CFrame.Angles(0, ang, 0), color, model, Enum.Material.Grass)
 	end
+	-- Enchanted Forest (block 15): bioluminescent giant mushroom-trees, floating rocks + will-o-wisps.
+	if i == 11 then
+		for k = 0, 7 do
+			local ang = k / 8 * math.pi * 2
+			local tx = center.x + math.cos(ang) * S * 0.18
+			local tz = center.z + math.sin(ang) * S * 0.18
+			mkPart("Stalk", Vector3.new(4, 40, 4), CFrame.new(tx, 20, tz), Color3.fromRGB(180, 160, 210), model, Enum.Material.SmoothPlastic)
+			local capColor = (k % 2 == 0) and Color3.fromRGB(200, 120, 240) or Color3.fromRGB(120, 220, 220)
+			local cap = mkPart("Cap", Vector3.new(24, 10, 24), CFrame.new(tx, 42, tz), capColor, model, Enum.Material.Neon)
+			cap.Shape = Enum.PartType.Ball
+			local wisp = mkPart("Wisp", Vector3.new(2, 2, 2), CFrame.new(tx, 30 + k, tz + 6), Color3.fromRGB(180, 255, 230), model, Enum.Material.Neon)
+			wisp.Shape = Enum.PartType.Ball
+			local pl = Instance.new("PointLight")
+			pl.Color = capColor
+			pl.Range = 30
+			pl.Brightness = 3
+			pl.Parent = cap
+		end
+		-- Ancient Treant guardian at the centre
+		mkPart("Treant", Vector3.new(14, 60, 14), CFrame.new(center.x, 30, center.z), Color3.fromRGB(90, 130, 90), model, Enum.Material.Wood)
+	end
+
 	local sign = mkPart("IslandSign", Vector3.new(3, 14, 3), CFrame.new(center.x, 7, center.z), Color3.fromRGB(120, 95, 70), model)
-	mkBillboard(sign, 14, 2.4, 9).Text = "🏝️ " .. (ISLAND_NAMES[i] or ("Island " .. i))
+	mkBillboard(sign, 14, 2.4, 9).Text = (i == 11 and "🌟 " or "🏝️ ") .. (ISLAND_NAMES[i] or ("Island " .. i))
 	local back = mkPrompt(sign, "Sail back to plaza", "sailback")
 	back.MaxActivationDistance = 20
 end
@@ -319,7 +342,7 @@ function World.build()
 		mkGather("Flowers", 60, gz, Vector3.new(8, 2, 8), Color3.fromRGB(220, 150, 200), Enum.Material.Grass, "Catch bug", "catch_bug", "bug", "🦋 Bug Patch", rootF)
 	end
 
-	-- ocean + 10 islands far out
+	-- ocean + 11 islands far out (10 biomes + the Enchanted Forest)
 	mkPart("Ocean", Vector3.new(WorldLayout.ISLAND_RING * 2.6, 2, WorldLayout.ISLAND_RING * 2.6), CFrame.new(0, -4, WorldLayout.MAP_CENTER_Z), Color3.fromRGB(58, 120, 190), rootF, Enum.Material.Water)
 	for i = 1, WorldLayout.ISLAND_COUNT do
 		buildIsland(i, WorldLayout.islandCenter(i), rootF)
@@ -330,10 +353,12 @@ function World.build()
 		{ 6, "Mine", "mine", "ore", "💎 Gem Vein" }, { 1, "Fish", "fish", "fish", "🎣 Beach Waters" },
 		{ 9, "Fish", "fish", "fish", "🐠 Reef Waters" }, { 2, "Catch bug", "catch_bug", "bug", "🦋 Forest Bugs" },
 		{ 7, "Forage", "forage", "mushroom", "🍄 Glow Caps" },
+		{ 11, "Catch fairy", "catch_bug", "bug", "🧚 Fairy Ring" }, { 11, "Fish", "fish", "fish", "💫 Glowing Pool" },
 	}
-	for _, g in islandGather do
+	for gi, g in islandGather do
 		local c = WorldLayout.islandCenter(g[1] :: number)
-		mkGather("IsleGather" .. tostring(g[1]), c.x - 45, c.z, Vector3.new(9, 5, 9), Color3.fromRGB(140, 130, 120), Enum.Material.Rock, g[2] :: string, g[3] :: string, g[4] :: string, g[5] :: string, rootF)
+		-- stagger x by loop index so two nodes on the same island (e.g. the Enchanted Forest) don't overlap
+		mkGather("IsleGather" .. tostring(gi), c.x - 45 + (gi % 2) * 90, c.z + (gi % 3) * 22, Vector3.new(9, 5, 9), Color3.fromRGB(140, 130, 120), Enum.Material.Rock, g[2] :: string, g[3] :: string, g[4] :: string, g[5] :: string, rootF)
 	end
 
 	-- NPCs: plaza NPCs ring the plaza; island NPCs stand on their island

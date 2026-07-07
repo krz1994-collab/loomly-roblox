@@ -32,6 +32,12 @@ local Plants: { Plant } = {
 	{ id = "starbloom",  biome = "meadow", emoji = "🌟", cost = 500,  growMs = 720000,   sell = 1400, tier = 6, unlock = { type = "plot", n = 6 } },
 	{ id = "moonberry",  biome = "meadow", emoji = "🌙", cost = 1200, growMs = 1500000,  sell = 3600, tier = 7, unlock = { type = "earned", v = 10000 } },
 	{ id = "crystalrose",biome = "meadow", emoji = "💎", cost = 3000, growMs = 2700000,  sell = 9500, tier = 8, unlock = { type = "codex", n = 5 } },
+	-- ── Enchanted Forest crops (block 15): magic crops, unlocked LATE, biased toward top mutations ──
+	{ id = "wispberry",  biome = "enchanted", emoji = "🔮", cost = 6000,  growMs = 1800000,  sell = 16000, tier = 9,  unlock = { type = "earned", v = 50000 } },
+	{ id = "fairybloom", biome = "enchanted", emoji = "🧚", cost = 12000, growMs = 2400000,  sell = 34000, tier = 10, unlock = { type = "earned", v = 120000 } },
+	{ id = "moonpetal",  biome = "enchanted", emoji = "🌸", cost = 24000, growMs = 3000000,  sell = 70000, tier = 11, unlock = { type = "earned", v = 300000 } },
+	{ id = "dreamroot",  biome = "enchanted", emoji = "💠", cost = 48000, growMs = 3600000,  sell = 150000, tier = 12, unlock = { type = "codex", n = 12 } },
+	{ id = "glimmergrass",biome = "enchanted",emoji = "✨", cost = 90000, growMs = 4200000,  sell = 320000, tier = 13, unlock = { type = "earned", v = 1000000 } },
 }
 
 local P = {}

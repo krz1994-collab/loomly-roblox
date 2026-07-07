@@ -158,6 +158,11 @@ function Farm.harvest(state: PlayerState, plotIndex: number): (boolean, string, 
 	-- "mutation" event (Blood Moon ×3 etc.) all push the odds toward rarer tiers.
 	local hiveLvl = (state.bees and state.bees.level) or 0
 	local mutBoost = upEffect(state, "luck") * Events.mult(now(), "mutation") * Bees.pollinationMult(hiveLvl)
+	-- Enchanted Forest crops lean hard toward rare mutations (block 15 biome bias).
+	local seedPlant = Plants.get(seedId)
+	if seedPlant and seedPlant.biome == "enchanted" then
+		mutBoost *= 2.5
+	end
 	local mutationId = Farm.rollMutation(mutBoost)
 	local key = invKey(seedId, mutationId)
 	state.inventory[key] = (state.inventory[key] or 0) + 1

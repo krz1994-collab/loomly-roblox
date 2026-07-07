@@ -29,8 +29,21 @@ local Meadow: Biome = {
 	mutationBias = {}, -- no bias in meadow: every mutation rolls at its base chance
 }
 
+-- Enchanted Forest (block 15, island 11): magic crops that lean hard toward the top mutation tiers.
+-- mutationBias multiplies each listed mutation's roll chance when a crop of this biome is harvested
+-- (applied in Farm.harvest). Everything here is earned play, never pay-to-win.
+local Enchanted: Biome = {
+	id = "enchanted",
+	unlock = { type = "quest", ref = "isle_enchanted" },
+	plantIds = { "wispberry", "fairybloom", "moonpetal", "dreamroot", "glimmergrass" },
+	fish = {},
+	bugs = {},
+	weatherEvents = { "fairy_mischief", "firefly_fest", "enchanted_bloom" },
+	mutationBias = { bloomly = 3, mythic = 3, celestial = 2.5, rainbow = 2 },
+}
+
 local B = {}
-B.list = { Meadow }
+B.list = { Meadow, Enchanted }
 B.STARTER_ID = "meadow"
 
 local byId: { [string]: Biome } = {}
