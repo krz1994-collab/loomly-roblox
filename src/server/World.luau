@@ -368,6 +368,10 @@ function World.build()
 			pr:SetAttribute("islandIndex", i)
 		end
 		mkBillboard(mkPart("HarborSign", Vector3.new(3, 12, 3), CFrame.new(0, 6, dockZ + 16), Color3.fromRGB(120, 95, 70), rootF), 14, 2, 8).Text = "⚓ Harbor — sail to the islands"
+		-- Boat shop: buy your first boat here (gates all sailing). Captain Bay stands beside it.
+		local boatShop = mkPart("BoatShop", Vector3.new(7, 8, 6), CFrame.new((WorldLayout.ISLAND_COUNT + 3) * 7, 4, dockZ), Color3.fromRGB(120, 80, 55), rootF, Enum.Material.WoodPlanks)
+		mkPrompt(boatShop, "Buy a Boat (250c)", "buyboat")
+		mkBillboard(boatShop, 10, 1.8, 6).Text = "⛵ Boat Shop — buy your first boat!"
 	end
 
 	-- hidden treasures: 5 per island (tier = island index) + 5 around the plaza

@@ -24,6 +24,7 @@ local GatherRules = require(ReplicatedStorage.Bloomly.GatherRules)
 local TreasureRules = require(ReplicatedStorage.Bloomly.TreasureRules)
 local EventRules = require(ReplicatedStorage.Bloomly.EventRules)
 local EventsData = require(ReplicatedStorage.Bloomly.data.Events)
+local SailRules = require(ReplicatedStorage.Bloomly.SailRules)
 
 local gatherRng = Random.new()
 local function gatherRand(): number
@@ -349,9 +350,27 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 			Quest.report(player, "buy_vehicle", vid, 1)
 			pushState(player)
 		end
+	elseif kind == "buyboat" then
+		-- Buy the first boat (Captain Bay's harbor_01 step). Unlocks the harbor + advances buy_boat quests.
+		local ok, reason = SailRules.canBuyBoat(state)
+		if ok then
+			state.coins -= SailRules.BOAT_COST
+			state.unlocks.boat = true
+			Quest.report(player, "buy_boat", nil, 1)
+			Remotes.Notify:FireClient(player, "⛵ You bought a boat! Sail to the islands from the Harbor.")
+			pushState(player)
+		else
+			Remotes.Notify:FireClient(player, reason)
+		end
 	elseif kind == "sail" then
 		local idx = prompt:GetAttribute("islandIndex")
 		if type(idx) == "number" then
+			-- GATE: must own a boat AND be high enough level for THIS island (SailRules, VPS-tested).
+			local ok, reason = SailRules.canSailTo(idx, state, Rules.levelForXp(state.xp))
+			if not ok then
+				Remotes.Notify:FireClient(player, reason)
+				return
+			end
 			local c = WorldLayout.islandCenter(idx)
 			teleportPlayerTo(player, c.x, c.z)
 			Quest.report(player, "sail", tostring(idx), 1)

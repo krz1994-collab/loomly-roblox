@@ -37,6 +37,7 @@ local Animals = require("../src/shared/data/Animals")
 local Recipes = require("../src/shared/data/Recipes")
 local Bees = require("../src/shared/data/Bees")
 local House = require("../src/shared/data/House")
+local SailRules = require("../src/shared/SailRules")
 
 local passed, failed = 0, 0
 local function check(name: string, cond: boolean)
@@ -686,6 +687,19 @@ do
 	check("bees upgrade cost climbs then nils at max", Bees.upgradeCost(0) == 1500 and Bees.upgradeCost(Bees.MAX) == nil)
 	check("bees pollination scales with level", Bees.pollinationMult(0) == 1 and Bees.pollinationMult(5) > 1)
 	check("house tiers 0..MAX present, upgrade nils at max", House.tierData(0) ~= nil and House.tierData(House.MAX) ~= nil and House.upgradeCost(House.MAX) == nil)
+end
+
+-- ---- SailRules: island gating (block 13) ----
+do
+	local noBoat = { unlocks = {}, coins = 1000 }
+	local withBoat = { unlocks = { boat = true }, coins = 1000 }
+	check("no boat -> can't sail", not (SailRules.canSailTo(1, noBoat, 50)))
+	check("boat + high level -> can sail to isle 1", (SailRules.canSailTo(1, withBoat, 50)))
+	check("boat but too low level -> blocked", not (SailRules.canSailTo(4, withBoat, 5)))
+	check("boat + exact level -> ok", (SailRules.canSailTo(4, withBoat, 13)))
+	check("can buy boat when affordable + none owned", (SailRules.canBuyBoat(noBoat)))
+	check("can't buy boat when already owned", not (SailRules.canBuyBoat(withBoat)))
+	check("can't buy boat when broke", not (SailRules.canBuyBoat({ unlocks = {}, coins = 10 })))
 end
 
 print(string.format("\n%d passed, %d failed", passed, failed))
