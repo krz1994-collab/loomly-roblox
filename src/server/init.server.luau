@@ -20,6 +20,13 @@ local WorldLayout = require(ReplicatedStorage.Bloomly.data.WorldLayout)
 local Catalog = require(ReplicatedStorage.Bloomly.data.Catalog)
 local UpgradeRules = require(ReplicatedStorage.Bloomly.UpgradeRules)
 local Upgrades = require(ReplicatedStorage.Bloomly.data.Upgrades)
+local GatherRules = require(ReplicatedStorage.Bloomly.GatherRules)
+
+local gatherRng = Random.new()
+local function gatherRand(): number
+	return gatherRng:NextNumber()
+end
+local GATHER_CAT: { [string]: { any } } = { fish = Catalog.Fish, bug = Catalog.Bugs, ore = Catalog.Ores, shell = Catalog.Shells }
 local PlayerData = require(script.PlayerData)
 local Farm = require(script.Farm)
 local PlotClaim = require(script.PlotClaim)
@@ -366,6 +373,26 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 			state.lifetimeEarned += reward
 			Remotes.Notify:FireClient(player, "🎁 Daily gift: +" .. reward .. "c! (streak " .. streak .. ")")
 			pushState(player)
+		end
+	elseif kind == "fish" or kind == "catch_bug" or kind == "mine" or kind == "forage" then
+		-- Gathering: server rolls a weighted catch (GatherRules), adds it to inventory, reports quest.
+		local cat = prompt:GetAttribute("list")
+		if type(cat) == "string" then
+			local luck = UpgradeRules.effectAt(Upgrades.get("luck") :: any, (state.upgrades and state.upgrades.luck) or 0)
+			local id: string? = nil
+			if cat == "mushroom" then
+				id = Catalog.Mushroom.id
+			elseif GATHER_CAT[cat] then
+				id = GatherRules.roll(GATHER_CAT[cat], gatherRand, luck)
+			end
+			if id then
+				local invKey = cat .. "|" .. id
+				state.inventory[invKey] = (state.inventory[invKey] or 0) + 1
+				state.harvests += 1
+				Quest.report(player, kind, id, 1)
+				Remotes.Notify:FireClient(player, "✨ Got a " .. id .. "!")
+				pushState(player)
+			end
 		end
 	elseif kind == "upgrade" then
 		-- VALIDATES: track exists, not maxed, affordable. Server debits + bumps the level (UpgradeRules).

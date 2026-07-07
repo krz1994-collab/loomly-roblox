@@ -24,6 +24,7 @@ local QuestRules = require("../src/shared/QuestRules")
 local Quests = require("../src/shared/data/Quests")
 local UpgradeRules = require("../src/shared/UpgradeRules")
 local Upgrades = require("../src/shared/data/Upgrades")
+local GatherRules = require("../src/shared/GatherRules")
 
 local passed, failed = 0, 0
 local function check(name: string, cond: boolean)
@@ -491,6 +492,47 @@ do
 	local rich: any = { coins = 1e9, upgrades = { plots = plots.maxLevel } }
 	check("cannot buy past maxLevel", not (UpgradeRules.buy(rich, plots)))
 	check("isMaxed true at maxLevel", UpgradeRules.isMaxed(plots, plots.maxLevel))
+end
+
+-- ---- GatherRules: weighted gathering roll (fishing/bugs/mining) ----
+do
+	eq("weightOf uses w when present", GatherRules.weightOf({ w = 34 }), 34)
+	eq("weightOf fish min 0 -> 20 (common)", GatherRules.weightOf({ min = 0 }), 20)
+	check("weightOf fish min 0.95 -> ~1 (rare)", GatherRules.weightOf({ min = 0.95 }) <= 2)
+	-- deterministic edges
+	local bugs = Catalog.Bugs
+	local function constR(v: number): () -> number
+		return function()
+			return v
+		end
+	end
+	check("roll near 0 -> first item", GatherRules.roll(bugs, constR(0)) == bugs[1].id)
+	check("roll near 1 -> last item", GatherRules.roll(bugs, constR(0.9999)) == bugs[#bugs].id)
+	-- every result is a real id
+	local ids = {}
+	for _, b in bugs do
+		ids[b.id] = true
+	end
+	local allValid = true
+	for i = 1, 50 do
+		if not ids[GatherRules.roll(bugs, constR(i / 51))] then
+			allValid = false
+		end
+	end
+	check("roll always returns a real id", allValid)
+	-- distribution: the commonest bug beats the rarest over many rolls
+	pcall(function()
+		math.randomseed(77)
+	end)
+	local mrand = function()
+		return math.random()
+	end
+	local counts: { [string]: number } = {}
+	for _ = 1, 20000 do
+		local id = GatherRules.roll(bugs, mrand)
+		counts[id] = (counts[id] or 0) + 1
+	end
+	check("common bug (white w34) > rare bug (rainbow w3)", (counts["white"] or 0) > (counts["rainbow"] or 0))
 end
 
 print(string.format("\n%d passed, %d failed", passed, failed))

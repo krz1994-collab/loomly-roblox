@@ -96,6 +96,15 @@ local function mkMarket(x: number, z: number, parent: Instance, label: string)
 	mkBillboard(m, 8, 1.6, 7).Text = label
 end
 
+-- A gathering node (fishing pond / mine rock / forage bush / bug patch).
+local function mkGather(name: string, x: number, z: number, size: Vector3, color: Color3, mat: Enum.Material, action: string, kind: string, list: string, label: string, parent: Instance)
+	local node = mkPart(name, size, CFrame.new(x, size.Y / 2, z), color, parent, mat)
+	local pr = mkPrompt(node, action, kind)
+	pr:SetAttribute("list", list)
+	pr.HoldDuration = 0.4
+	mkBillboard(node, 6, 1.4, size.Y + 2).Text = label
+end
+
 local ISLAND_NAMES = {
 	"Sunny Beach", "Whispering Woods", "Frostpeak", "Volcano Isle", "Golden Dunes",
 	"Crystal Cove", "Mushroom Grove", "Windy Cliffs", "Coral Reef", "Misty Highlands",
@@ -269,10 +278,30 @@ function World.build()
 		sections[i] = { ownerLabel = ownerLabel, pads = pads }
 	end
 
+	-- gathering grove near the plaza (fish / mine / forage / bugs — for the tutorial + early quests)
+	do
+		local gz = WorldLayout.PLAZA_Z - 110
+		mkGather("Pond", -45, gz, Vector3.new(22, 2, 22), Color3.fromRGB(70, 130, 200), Enum.Material.Water, "Fish", "fish", "fish", "🎣 Fishing Pond", rootF)
+		mkGather("Rocks", -5, gz, Vector3.new(8, 8, 8), Color3.fromRGB(120, 120, 125), Enum.Material.Rock, "Mine", "mine", "ore", "⛏️ Rocks", rootF)
+		mkGather("Bush", 30, gz, Vector3.new(7, 5, 7), Color3.fromRGB(80, 150, 70), Enum.Material.Grass, "Forage", "forage", "mushroom", "🍄 Forage Bush", rootF)
+		mkGather("Flowers", 60, gz, Vector3.new(8, 2, 8), Color3.fromRGB(220, 150, 200), Enum.Material.Grass, "Catch bug", "catch_bug", "bug", "🦋 Bug Patch", rootF)
+	end
+
 	-- ocean + 10 islands far out
 	mkPart("Ocean", Vector3.new(WorldLayout.ISLAND_RING * 2.6, 2, WorldLayout.ISLAND_RING * 2.6), CFrame.new(0, -4, WorldLayout.MAP_CENTER_Z), Color3.fromRGB(58, 120, 190), rootF, Enum.Material.Water)
 	for i = 1, WorldLayout.ISLAND_COUNT do
 		buildIsland(i, WorldLayout.islandCenter(i), rootF)
+	end
+	-- island-specific gathering nodes
+	local islandGather = {
+		{ 4, "Mine", "mine", "ore", "⛏️ Lava Rocks" }, { 3, "Mine", "mine", "ore", "❄️ Ice Crystals" },
+		{ 6, "Mine", "mine", "ore", "💎 Gem Vein" }, { 1, "Fish", "fish", "fish", "🎣 Beach Waters" },
+		{ 9, "Fish", "fish", "fish", "🐠 Reef Waters" }, { 2, "Catch bug", "catch_bug", "bug", "🦋 Forest Bugs" },
+		{ 7, "Forage", "forage", "mushroom", "🍄 Glow Caps" },
+	}
+	for _, g in islandGather do
+		local c = WorldLayout.islandCenter(g[1] :: number)
+		mkGather("IsleGather" .. tostring(g[1]), c.x - 45, c.z, Vector3.new(9, 5, 9), Color3.fromRGB(140, 130, 120), Enum.Material.Rock, g[2] :: string, g[3] :: string, g[4] :: string, g[5] :: string, rootF)
 	end
 
 	-- NPCs: plaza NPCs ring the plaza; island NPCs stand on their island

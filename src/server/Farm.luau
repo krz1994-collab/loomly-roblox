@@ -11,7 +11,39 @@ local Config = require(ReplicatedStorage.Bloomly.data.Config)
 local Rules = require(ReplicatedStorage.Bloomly.Rules) -- the pure, VPS-tested loop core
 local UpgradeRules = require(ReplicatedStorage.Bloomly.UpgradeRules)
 local Upgrades = require(ReplicatedStorage.Bloomly.data.Upgrades)
+local Catalog = require(ReplicatedStorage.Bloomly.data.Catalog)
 local PlayerData = require(script.Parent.PlayerData)
+
+-- Sell value + emoji for ANY inventory key. Crops are "plantId|mutationId"; gathered items are
+-- "category|id" (fish|carp, bug|white, ore|gem, shell|pearl, forage|apple, mushroom|mushroom).
+local GATHER_LISTS: { [string]: { any } } = {
+	fish = Catalog.Fish,
+	winterfish = Catalog.WinterFish,
+	bug = Catalog.Bugs,
+	ore = Catalog.Ores,
+	shell = Catalog.Shells,
+}
+local function itemSell(key: string): (number, string)
+	local sep = string.find(key, Config.INV_SEP, 1, true)
+	local a = if sep then string.sub(key, 1, sep - 1) else key
+	local b = if sep then string.sub(key, sep + 1) else ""
+	local plant = Plants.get(a)
+	if plant then
+		return math.floor(plant.sell * Mutations.multOf(b)), plant.emoji
+	end
+	local list = GATHER_LISTS[a]
+	if list then
+		for _, row in list do
+			if row.id == b then
+				return row.sell, row.emoji
+			end
+		end
+	end
+	if a == "mushroom" then
+		return Catalog.Mushroom.sell, Catalog.Mushroom.emoji
+	end
+	return 0, "?"
+end
 
 -- Effect value of an upgrade track for this player (1.0 / base if unbought).
 local function upEffect(state: PlayerData.PlayerState, trackId: string): number
@@ -136,14 +168,8 @@ function Farm.sellAll(state: PlayerState): (boolean, number)
 	local gained = 0
 	for key, qty in state.inventory do
 		if qty > 0 then
-			local sep = string.find(key, Config.INV_SEP, 1, true)
-			local plantId = if sep then string.sub(key, 1, sep - 1) else key
-			local mutationId = if sep then string.sub(key, sep + 1) else Mutations.NORMAL_ID
-			local plant = Plants.get(plantId)
-			if plant then
-				local unit = Rules.sellPrice(plant.sell, Mutations.multOf(mutationId)) -- NPC floor
-				gained += unit * qty
-			end
+			local unit = itemSell(key) -- crops + gathered items alike (NPC floor)
+			gained += unit * qty
 		end
 	end
 	if gained <= 0 then
@@ -199,16 +225,15 @@ function Farm.buildView(state: PlayerState, ownedPlots: number)
 	for key, qty in state.inventory do
 		if qty > 0 then
 			local sep = string.find(key, Config.INV_SEP, 1, true)
-			local plantId = if sep then string.sub(key, 1, sep - 1) else key
-			local mutationId = if sep then string.sub(key, sep + 1) else Mutations.NORMAL_ID
-			local plant = Plants.get(plantId)
-			local unit = if plant then Rules.sellPrice(plant.sell, Mutations.multOf(mutationId)) else 0
+			local a = if sep then string.sub(key, 1, sep - 1) else key
+			local b = if sep then string.sub(key, sep + 1) else ""
+			local unit, emoji = itemSell(key)
 			table.insert(inventory, {
-				plantId = plantId,
-				mutationId = mutationId,
+				plantId = a,
+				mutationId = b,
 				qty = qty,
 				unitValue = unit,
-				emoji = if plant then plant.emoji else "?",
+				emoji = emoji,
 			})
 		end
 	end
