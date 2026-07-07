@@ -138,6 +138,7 @@ function Farm.sellAll(state: PlayerState): (boolean, number)
 	if gained <= 0 then
 		return false, 0 -- nothing sellable
 	end
+	gained = math.floor(gained * Rules.coinMult(state.rebirths or 0)) -- prestige: +10% per rebirth
 	state.coins += gained
 	state.lifetimeEarned += gained -- lifetimeEarned only ever grows; drives "earned" unlocks
 	table.clear(state.inventory)

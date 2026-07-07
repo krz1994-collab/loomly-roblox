@@ -304,6 +304,25 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 		end
 	elseif kind == "sailback" then
 		teleportPlayerTo(player, 0, WorldLayout.PLAZA_Z)
+	elseif kind == "rebirth" then
+		-- VALIDATES: you have enough lifetime-earned for your next (scaling) rebirth. Resets wallet,
+		-- grants a permanent +10% coin multiplier; keeps everything else.
+		local cost = Rules.rebirthCost(state.rebirths or 0)
+		if state.lifetimeEarned >= cost then
+			state.rebirths = (state.rebirths or 0) + 1
+			state.coins = Config.START_COINS
+			pushState(player)
+		end
+	elseif kind == "dailygift" then
+		local today = math.floor(os.time() / 86400)
+		local d = state.daily or { day = 0, streak = 0 }
+		local ok, reward, day, streak = Rules.dailyClaim(d.day, d.streak, today)
+		if ok then
+			state.daily = { day = day, streak = streak }
+			state.coins += reward
+			state.lifetimeEarned += reward
+			pushState(player)
+		end
 	end
 end)
 

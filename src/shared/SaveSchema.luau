@@ -24,6 +24,8 @@ export type PlayerState = {
 	plots: { Plot },
 	inventory: { [string]: number },
 	vehicle: string?, -- owned vehicle id (nil = on foot); gives a walkspeed boost
+	rebirths: number, -- prestige count; each = +10% coin multiplier
+	daily: { day: number, streak: number }, -- daily-login streak state
 }
 
 local SaveSchema = {}
@@ -64,6 +66,8 @@ function SaveSchema.serialize(state: PlayerState): any
 		plots = deepCopy(state.plots),
 		inventory = deepCopy(state.inventory),
 		vehicle = state.vehicle,
+		rebirths = state.rebirths,
+		daily = deepCopy(state.daily),
 	}
 end
 
@@ -94,6 +98,9 @@ function SaveSchema.validate(candidate: any, template: PlayerState): PlayerState
 	out.harvests = isNonNegNumber(t.harvests) and t.harvests or template.harvests
 	out.xp = isNonNegNumber(t.xp) and t.xp or template.xp
 	out.vehicle = if type(t.vehicle) == "string" then t.vehicle else nil
+	out.rebirths = isNonNegNumber(t.rebirths) and t.rebirths or 0
+	local d: any = type(t.daily) == "table" and t.daily or {}
+	out.daily = { day = isNonNegNumber(d.day) and d.day or 0, streak = isNonNegNumber(d.streak) and d.streak or 0 }
 
 	-- codex: map of string->true
 	out.codex = {}

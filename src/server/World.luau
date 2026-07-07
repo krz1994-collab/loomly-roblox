@@ -183,6 +183,14 @@ function World.build()
 			mkBillboard(stand, 6, 1.6, 4).Text = veh.emoji .. " " .. veh.name
 		end
 	end
+	do -- retention NPCs
+		local rebirth = mkPart("RebirthShrine", Vector3.new(6, 10, 6), CFrame.new(-62, 5, WorldLayout.PLAZA_Z), Color3.fromRGB(180, 120, 205), rootF, Enum.Material.Neon)
+		mkPrompt(rebirth, "Rebirth (+10% coins forever)", "rebirth")
+		mkBillboard(rebirth, 9, 1.6, 7).Text = "🔮 Rebirth Shrine"
+		local daily = mkPart("DailyGift", Vector3.new(5, 8, 5), CFrame.new(62, 4, WorldLayout.PLAZA_Z), Color3.fromRGB(220, 90, 90), rootF)
+		mkPrompt(daily, "Claim daily gift", "dailygift")
+		mkBillboard(daily, 8, 1.6, 6).Text = "🎁 Daily Gift"
+	end
 	mkLamppost(-WorldLayout.PLAZA_RADIUS, WorldLayout.PLAZA_Z, rootF)
 	mkLamppost(WorldLayout.PLAZA_RADIUS, WorldLayout.PLAZA_Z, rootF)
 

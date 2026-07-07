@@ -216,7 +216,7 @@ local function tmpl(): any
 	for _ = 1, 6 do
 		table.insert(plots, { seedId = nil, readyAt = nil })
 	end
-	return { coins = 20, lifetimeEarned = 0, harvests = 0, xp = 0, codex = {}, inventory = {}, plots = plots }
+	return { coins = 20, lifetimeEarned = 0, harvests = 0, xp = 0, codex = {}, inventory = {}, plots = plots, rebirths = 0, daily = { day = 0, streak = 0 } }
 end
 do
 	local st: any = {
@@ -226,6 +226,8 @@ do
 		xp = 250,
 		codex = { ["radish|golden"] = true, ["sunflower|normal"] = true },
 		inventory = { ["radish|normal"] = 3, ["pumpkin|giant"] = 1 },
+		rebirths = 2,
+		daily = { day = 100, streak = 3 },
 		plots = {
 			{ seedId = "radish", readyAt = 1700000000 },
 			{ seedId = nil, readyAt = nil },
@@ -382,6 +384,24 @@ do
 	end
 	check("all buyables: string id + positive cost", buyablesOk)
 	check("vehicles give a speed multiplier > 1", Catalog.Vehicles[1].speed > 1 and Catalog.Vehicles[4].speed > 1)
+end
+
+-- ---- rebirth + daily (pure retention math) ----
+eq("coinMult 0 rebirths = 1", Rules.coinMult(0), 1)
+eq("coinMult 3 rebirths = 1.3", Rules.coinMult(3), 1.3)
+eq("first rebirth costs 1M lifetime", Rules.rebirthCost(0), 1000000)
+eq("third rebirth costs 3M lifetime", Rules.rebirthCost(2), 3000000)
+do
+	local ok, reward, day, streak = Rules.dailyClaim(0, 0, 1)
+	check("day 1 claim ok", ok and reward == 15 and day == 1 and streak == 1)
+	local ok2 = Rules.dailyClaim(1, 1, 1)
+	check("same day cannot re-claim", not ok2)
+	local _, r3, _, s3 = Rules.dailyClaim(1, 1, 2)
+	check("consecutive day -> streak 2, reward 25", r3 == 25 and s3 == 2)
+	local _, r4, _, s4 = Rules.dailyClaim(1, 5, 4)
+	check("gap resets streak to 1 (reward 15)", r4 == 15 and s4 == 1)
+	local _, r7 = Rules.dailyClaim(1, 9, 2)
+	check("streak reward caps at day 7 (200)", r7 == 200)
 end
 
 print(string.format("\n%d passed, %d failed", passed, failed))

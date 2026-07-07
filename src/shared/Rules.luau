@@ -70,4 +70,26 @@ function Rules.levelForXp(xp: number): number
 	return math.floor(math.sqrt(xp / 50)) + 1
 end
 
+-- Prestige: each rebirth grants a permanent +10% coin multiplier (applied to every sale).
+function Rules.coinMult(rebirths: number): number
+	return 1 + (rebirths or 0) * 0.1
+end
+
+-- Cost (in lifetime-earned) to perform your NEXT rebirth. Scales so you can't rebirth twice in a row.
+function Rules.rebirthCost(rebirths: number): number
+	return ((rebirths or 0) + 1) * 1000000
+end
+
+-- Escalating daily-login reward. `today` = whole day number (floor(os.time()/86400)).
+-- Returns (claimed, reward, newLastDay, newStreak). Consecutive days grow the streak; a gap resets it.
+local DAILY = { 15, 25, 40, 60, 90, 130, 200 }
+function Rules.dailyClaim(lastDay: number, streak: number, today: number): (boolean, number, number, number)
+	if today <= lastDay then
+		return false, 0, lastDay, streak -- already claimed today (or clock went backwards)
+	end
+	local newStreak = if today == lastDay + 1 then streak + 1 else 1
+	local reward = DAILY[math.min(newStreak, #DAILY)]
+	return true, reward, today, newStreak
+end
+
 return Rules

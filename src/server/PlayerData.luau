@@ -55,6 +55,8 @@ export type PlayerState = {
 	plots: { Plot }, -- 1..Config.PLOT_COUNT
 	inventory: { [string]: number }, -- key = plantId|mutationId  ->  quantity
 	vehicle: string?, -- owned vehicle id (nil = on foot)
+	rebirths: number, -- prestige count (+10% coins each)
+	daily: { day: number, streak: number }, -- daily-login streak
 }
 
 local PlayerData = {}
@@ -76,6 +78,8 @@ local function makeDefault(): PlayerState
 		codex = {},
 		plots = plots,
 		inventory = {},
+		rebirths = 0,
+		daily = { day = 0, streak = 0 },
 	}
 end
 
