@@ -41,6 +41,8 @@ local SailRules = require("../src/shared/SailRules")
 local AchievementRules = require("../src/shared/AchievementRules")
 local Achievements = require("../src/shared/data/Achievements")
 local TradeRules = require("../src/shared/TradeRules")
+local CommandRules = require("../src/shared/CommandRules")
+local Commands = require("../src/shared/data/Commands")
 
 local passed, failed = 0, 0
 local function check(name: string, cond: boolean)
@@ -770,6 +772,33 @@ do
 	check("settle gave carrots to A", invA["carrot|normal"] == 2)
 	check("settle cleared escrows", next(escA) == nil and next(escB) == nil)
 	eq("CONSERVED after settle (no dupe/vanish)", grandTotal(), START)
+end
+
+-- ---- CommandRules (block 16) ----
+do
+	check("non-command returns nil", CommandRules.parse("hello there") == nil)
+	local p = CommandRules.parse("/goto 5")
+	check("parses verb", p ~= nil and p.cmd == "goto")
+	check("parses args", p ~= nil and p.args[1] == "5")
+	local p2 = CommandRules.parse("/HELP")
+	check("verb is lowercased", p2 ~= nil and p2.cmd == "help")
+	-- goto resolution
+	local place, idx = CommandRules.resolveGoto("plaza")
+	check("goto plaza", place == "plaza")
+	local place2, idx2 = CommandRules.resolveGoto("harbor")
+	check("goto harbor", place2 == "harbor")
+	local place3, idx3 = CommandRules.resolveGoto("11")
+	check("goto island 11", place3 == "island" and idx3 == 11)
+	check("goto bad target -> nil", (CommandRules.resolveGoto("99")) == nil and (CommandRules.resolveGoto("banana")) == nil)
+	-- help text mentions every registered command
+	local help = CommandRules.helpText(Commands.list)
+	local allListed = true
+	for _, c in Commands.list do
+		if not string.find(help, "/" .. c.name, 1, true) then
+			allListed = false
+		end
+	end
+	check("help text lists every command", allListed)
 end
 
 print(string.format("\n%d passed, %d failed", passed, failed))

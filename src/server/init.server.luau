@@ -27,6 +27,8 @@ local EventsData = require(ReplicatedStorage.Bloomly.data.Events)
 local SailRules = require(ReplicatedStorage.Bloomly.SailRules)
 local AchievementRules = require(ReplicatedStorage.Bloomly.AchievementRules)
 local Achievements = require(ReplicatedStorage.Bloomly.data.Achievements)
+local CommandRules = require(ReplicatedStorage.Bloomly.CommandRules)
+local Commands = require(ReplicatedStorage.Bloomly.data.Commands)
 
 local gatherRng = Random.new()
 local function gatherRand(): number
@@ -201,6 +203,97 @@ local function teleportPlayerTo(player: Player, x: number, z: number)
 	;(hrp :: BasePart).CFrame = CFrame.new(target)
 end
 
+-- ---- chat commands (block 16) ---------------------------------------------------
+-- Parse via the pure CommandRules, then route each verb to the SAME validated server functions the
+-- ProximityPrompts use. Unknown -> a friendly nudge to /help.
+local function handleCommand(player: Player, text: string)
+	local parsed = CommandRules.parse(text)
+	if not parsed then
+		return
+	end
+	local state = PlayerData.get(player)
+	if not state then
+		return
+	end
+	local cmd = parsed.cmd
+	if cmd == "help" or cmd == "commands" then
+		Remotes.Notify:FireClient(player, CommandRules.helpText(Commands.list))
+	elseif cmd == "home" or cmd == "stuck" then
+		teleportToYard(player)
+		Remotes.Notify:FireClient(player, "🏠 Warped back to your farm!")
+	elseif cmd == "goto" then
+		local place, idx = CommandRules.resolveGoto(parsed.args[1])
+		if place == "plaza" then
+			teleportPlayerTo(player, 0, WorldLayout.PLAZA_Z)
+		elseif place == "harbor" then
+			teleportPlayerTo(player, 0, WorldLayout.PLAZA_Z - 70)
+		elseif place == "island" and idx then
+			local ok, reason = SailRules.canSailTo(idx, state, Rules.levelForXp(state.xp))
+			if ok then
+				local c = WorldLayout.islandCenter(idx)
+				teleportPlayerTo(player, c.x, c.z)
+				Quest.report(player, "sail", tostring(idx), 1)
+			else
+				Remotes.Notify:FireClient(player, reason)
+			end
+		else
+			Remotes.Notify:FireClient(player, "Try /goto plaza, /goto harbor, or /goto <1-11>")
+		end
+	elseif cmd == "sell" then
+		local sold = 0
+		for _, qn in state.inventory do
+			sold += qn
+		end
+		if Farm.sellAll(state) then
+			Quest.report(player, "sell", nil, sold)
+			pushState(player)
+		else
+			Remotes.Notify:FireClient(player, "Nothing to sell right now!")
+		end
+	elseif cmd == "daily" then
+		Remotes.Notify:FireClient(player, "🎁 Claim at the Daily Gift stand in the plaza. Current streak: " .. ((state.daily and state.daily.streak) or 0))
+	elseif cmd == "quests" then
+		local qs = Quest.activeView(state)
+		if qs and #qs > 0 then
+			local lines = { "📜 Active quests:" }
+			for _, q in qs do
+				table.insert(lines, "• " .. q.name .. " (" .. q.prog .. "/" .. q.need .. ")")
+			end
+			Remotes.Notify:FireClient(player, table.concat(lines, "\n"))
+		else
+			Remotes.Notify:FireClient(player, "No active quests — talk to 🌳 Elder Willow in the plaza!")
+		end
+	elseif cmd == "trade" then
+		local name = parsed.args[1]
+		if not name then
+			Remotes.Notify:FireClient(player, "Use /trade <player name>.")
+		else
+			local target: Player? = nil
+			for _, p in Players:GetPlayers() do
+				if p ~= player and p.Name:lower() == name:lower() then
+					target = p
+				end
+			end
+			if target then
+				Trade.request(player, target.UserId)
+			else
+				Remotes.Notify:FireClient(player, "Couldn't find a player named '" .. name .. "' here.")
+			end
+		end
+	elseif cmd == "rebirth" then
+		local cost = Rules.rebirthCost(state.rebirths or 0)
+		Remotes.Notify:FireClient(player, "🔮 Rebirth resets your coins for a permanent +10% coin boost. Next costs " .. cost .. " lifetime coins. Use the Rebirth Shrine in the plaza.")
+	elseif cmd == "map" then
+		Remotes.Notify:FireClient(player, "🗺️ Press the Map button (top-right) to see the whole world!")
+	elseif cmd == "shop" then
+		Remotes.Notify:FireClient(player, "🛒 Seeds, Tools, Pets, Vehicles and Upgrades are in the plaza; Boats are at the Harbor.")
+	elseif cmd == "tutorial" or cmd == "guide" then
+		Remotes.Notify:FireClient(player, "👋 Walk up to any station and press E — the prompt tells you what it does!")
+	else
+		Remotes.Notify:FireClient(player, "Unknown command '" .. cmd .. "'. Type /help! 😊")
+	end
+end
+
 -- ---- lifecycle ------------------------------------------------------------------
 local function onPlayerAdded(player: Player)
 	local state = PlayerData.load(player) -- loads authoritative state (DataStore in load())
@@ -212,6 +305,9 @@ local function onPlayerAdded(player: Player)
 		task.wait(0.4) -- let the character finish loading before we move it
 		teleportToYard(player)
 		applyVehicleSpeed(player)
+	end)
+	player.Chatted:Connect(function(msg)
+		handleCommand(player, msg) -- chat commands (/help, /goto, /trade, ...)
 	end)
 	if player.Character then
 		teleportToYard(player)
