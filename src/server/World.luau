@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Bloomly.data.Config)
 local WorldLayout = require(ReplicatedStorage.Bloomly.data.WorldLayout)
 local Catalog = require(ReplicatedStorage.Bloomly.data.Catalog)
+local Npcs = require(ReplicatedStorage.Bloomly.data.Npcs)
 
 local World = {}
 
@@ -262,6 +263,31 @@ function World.build()
 	mkPart("Ocean", Vector3.new(WorldLayout.ISLAND_RING * 2.6, 2, WorldLayout.ISLAND_RING * 2.6), CFrame.new(0, -4, WorldLayout.MAP_CENTER_Z), Color3.fromRGB(58, 120, 190), rootF, Enum.Material.Water)
 	for i = 1, WorldLayout.ISLAND_COUNT do
 		buildIsland(i, WorldLayout.islandCenter(i), rootF)
+	end
+
+	-- NPCs: plaza NPCs ring the plaza; island NPCs stand on their island
+	do
+		local plazaNpcs = {}
+		for _, npc in Npcs.list do
+			if npc.island then
+				local c = WorldLayout.islandCenter(npc.island)
+				local body = mkPart("Npc_" .. npc.id, Vector3.new(3, 6, 3), CFrame.new(c.x, 5, c.z + 30), Color3.fromRGB(205, 180, 150), rootF)
+				local pr = mkPrompt(body, "Talk", "talk")
+				pr:SetAttribute("npc", npc.id)
+				mkBillboard(body, 9, 1.8, 5).Text = npc.emoji .. " " .. npc.name
+			else
+				table.insert(plazaNpcs, npc)
+			end
+		end
+		for idx, npc in plazaNpcs do
+			local a = (idx / #plazaNpcs) * math.pi * 2
+			local r = WorldLayout.PLAZA_RADIUS + 14
+			local x, z = math.cos(a) * r, WorldLayout.PLAZA_Z + math.sin(a) * r
+			local body = mkPart("Npc_" .. npc.id, Vector3.new(3, 6, 3), CFrame.new(x, 3, z), Color3.fromRGB(205, 180, 150), rootF)
+			local pr = mkPrompt(body, "Talk", "talk")
+			pr:SetAttribute("npc", npc.id)
+			mkBillboard(body, 9, 1.8, 5).Text = npc.emoji .. " " .. npc.name
+		end
 	end
 
 	-- harbor in the plaza: a dock + a boat per island (sail = teleport for now)

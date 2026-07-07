@@ -82,6 +82,59 @@ hint.TextSize = 15
 hint.Text = "Find your 🌱 farm below · press E on a plot to plant / harvest · sell at 🧺 Market"
 hint.Parent = gui
 
+-- ---- quest tracker (top-right) ----
+local questPanel = Instance.new("TextLabel")
+questPanel.Size = UDim2.new(0, 300, 0, 150)
+questPanel.Position = UDim2.new(1, -312, 0, 44)
+questPanel.BackgroundColor3 = Color3.fromRGB(24, 30, 22)
+questPanel.BackgroundTransparency = 0.3
+questPanel.BorderSizePixel = 0
+questPanel.TextXAlignment = Enum.TextXAlignment.Left
+questPanel.TextYAlignment = Enum.TextYAlignment.Top
+questPanel.TextColor3 = Color3.fromRGB(235, 240, 225)
+questPanel.Font = Enum.Font.GothamMedium
+questPanel.TextSize = 13
+questPanel.Text = "📜 Quests: talk to 🌳 Elder Willow to start!"
+questPanel.Parent = gui
+local qpCorner = Instance.new("UICorner")
+qpCorner.CornerRadius = UDim.new(0, 8)
+qpCorner.Parent = questPanel
+local qpPad = Instance.new("UIPadding")
+qpPad.PaddingLeft = UDim.new(0, 8)
+qpPad.PaddingTop = UDim.new(0, 6)
+qpPad.Parent = questPanel
+
+-- ---- notify toast (bottom-center, fades) ----
+local toast = Instance.new("TextLabel")
+toast.Size = UDim2.new(0, 520, 0, 34)
+toast.Position = UDim2.new(0.5, -260, 1, -120)
+toast.BackgroundColor3 = Color3.fromRGB(40, 60, 30)
+toast.BackgroundTransparency = 1
+toast.TextColor3 = Color3.fromRGB(255, 255, 255)
+toast.TextStrokeTransparency = 1
+toast.Font = Enum.Font.GothamBold
+toast.TextSize = 18
+toast.Text = ""
+toast.Parent = gui
+local toastCorner = Instance.new("UICorner")
+toastCorner.CornerRadius = UDim.new(0, 8)
+toastCorner.Parent = toast
+local toastToken = 0
+Remotes.Notify.OnClientEvent:Connect(function(msg: string)
+	toast.Text = msg
+	toast.BackgroundTransparency = 0.2
+	toast.TextStrokeTransparency = 0.3
+	toastToken += 1
+	local myToken = toastToken
+	task.delay(3.5, function()
+		if myToken == toastToken then
+			toast.BackgroundTransparency = 1
+			toast.TextStrokeTransparency = 1
+			toast.Text = ""
+		end
+	end)
+end)
+
 -- ---- bottom seed bar ----
 local seedBar = Instance.new("Frame")
 seedBar.Size = UDim2.new(0, 640, 0, 60)
@@ -152,6 +205,21 @@ local function render(view: any)
 				btn.Text = s.emoji .. " " .. s.id .. "\nbuy " .. s.cost .. "c"
 			end
 		end
+	end
+
+	-- quest tracker
+	if view.quests and #view.quests > 0 then
+		local lines = { "📜 Quests:" }
+		for _, q in view.quests do
+			if q.ready then
+				table.insert(lines, "✅ " .. q.name .. " — turn in!")
+			else
+				table.insert(lines, "• " .. q.name .. "  (" .. q.prog .. "/" .. q.need .. ", step " .. q.step .. "/" .. q.steps .. ")")
+			end
+		end
+		questPanel.Text = table.concat(lines, "\n")
+	else
+		questPanel.Text = "📜 Quests: talk to 🌳 Elder Willow to start!"
 	end
 end
 

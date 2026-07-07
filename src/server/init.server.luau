@@ -22,6 +22,7 @@ local PlayerData = require(script.PlayerData)
 local Farm = require(script.Farm)
 local PlotClaim = require(script.PlotClaim)
 local World = require(script.World)
+local Quest = require(script.Quest)
 
 -- Build the shared 3D world once, before anyone arrives.
 World.build()
@@ -75,6 +76,7 @@ local function pushState(player: Player)
 	local section = PlotClaim.sectionOf(player.UserId)
 	view.section = section -- so the client knows which section is its own
 	view.selectedSeed = selectedSeed[player.UserId]
+	view.quests = Quest.activeView(state) -- active quests + progress for the tracker
 	Remotes.StateUpdate:FireClient(player, view)
 	updateLeaderstats(player, state)
 	if section then
@@ -261,8 +263,24 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 	end
 	local kind = prompt:GetAttribute("kind")
 
-	if kind == "sell" then
+	if kind == "talk" then
+		local npcId = prompt:GetAttribute("npc")
+		if type(npcId) == "string" then
+			local res = Quest.talkTo(player, npcId)
+			if res.action == "accept" then
+				Remotes.Notify:FireClient(player, "📜 New quest: " .. res.questName)
+			elseif res.action == "complete" then
+				Remotes.Notify:FireClient(player, "✅ Quest complete: " .. res.questName .. "!")
+			end
+			pushState(player)
+		end
+	elseif kind == "sell" then
+		local sold = 0
+		for _, qn in state.inventory do
+			sold += qn
+		end
 		if Farm.sellAll(state) then
+			Quest.report(player, "sell", nil, sold)
 			pushState(player)
 		end
 	elseif kind == "plot" then
@@ -279,9 +297,21 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 		local plot = state.plots[plotIndex]
 		local changed = false
 		if plot and plot.seedId == nil then
-			changed = Farm.plant(state, selectedSeed[player.UserId] or "radish", plotIndex, ownedPlotsFor(player))
+			local seed = selectedSeed[player.UserId] or "radish"
+			changed = Farm.plant(state, seed, plotIndex, ownedPlotsFor(player))
+			if changed then
+				Quest.report(player, "plant", seed, 1)
+			end
 		elseif plot and plot.seedId ~= nil then
-			changed = Farm.harvest(state, plotIndex)
+			local seed = plot.seedId
+			local hok, _, mut = Farm.harvest(state, plotIndex)
+			changed = hok
+			if hok then
+				Quest.report(player, "harvest", seed, 1)
+				if mut and mut ~= "normal" then
+					Quest.report(player, "harvest_mut", nil, 1)
+				end
+			end
 		end
 		if changed then
 			pushState(player)
@@ -294,6 +324,7 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 			state.coins -= veh.cost
 			state.vehicle = vid
 			applyVehicleSpeed(player)
+			Quest.report(player, "buy_vehicle", vid, 1)
 			pushState(player)
 		end
 	elseif kind == "sail" then
@@ -301,6 +332,8 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 		if type(idx) == "number" then
 			local c = WorldLayout.islandCenter(idx)
 			teleportPlayerTo(player, c.x, c.z)
+			Quest.report(player, "sail", tostring(idx), 1)
+			pushState(player)
 		end
 	elseif kind == "sailback" then
 		teleportPlayerTo(player, 0, WorldLayout.PLAZA_Z)
@@ -311,6 +344,7 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 		if state.lifetimeEarned >= cost then
 			state.rebirths = (state.rebirths or 0) + 1
 			state.coins = Config.START_COINS
+			Quest.report(player, "rebirth", nil, 1)
 			pushState(player)
 		end
 	elseif kind == "dailygift" then
