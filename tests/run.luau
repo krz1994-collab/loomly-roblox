@@ -315,6 +315,20 @@ do
 		end
 	end
 	check("house/pen/utility/orchard zones fit inside the plot", zonesInside)
+
+	-- the 10 islands are spread far apart (never overlap)
+	local minIsland = math.huge
+	local ic = {}
+	for i = 1, WorldLayout.ISLAND_COUNT do
+		ic[i] = WorldLayout.islandCenter(i)
+	end
+	for i = 1, WorldLayout.ISLAND_COUNT do
+		for j = i + 1, WorldLayout.ISLAND_COUNT do
+			local d = math.sqrt((ic[i].x - ic[j].x) ^ 2 + (ic[i].z - ic[j].z) ^ 2)
+			minIsland = math.min(minIsland, d)
+		end
+	end
+	check("10 islands never overlap", minIsland >= WorldLayout.ISLAND_SIZE)
 end
 
 -- ---- PlotRules: claim + ownership (pure) ----

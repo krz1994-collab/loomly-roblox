@@ -46,6 +46,21 @@ function WorldLayout.plotPadOffset(plotIndex: number, plotCount: number): { x: n
 	return { x = x, z = z }
 end
 
+-- ---- islands (reached by boat from the plaza harbor) ----
+WorldLayout.ISLAND_COUNT = 10
+WorldLayout.ISLAND_RING = 5000 -- islands sit this far out in the ocean, in a ring
+WorldLayout.ISLAND_SIZE = 600 -- approx landmass diameter
+WorldLayout.MAP_CENTER_Z = 2000 -- roughly the centre of the plot grid; the island ring centres here
+
+-- Centre of island `i` (1-based), scattered in a ring around the map centre (far past the plots).
+function WorldLayout.islandCenter(i: number): { x: number, z: number }
+	local a = (i - 1) / WorldLayout.ISLAND_COUNT * math.pi * 2 + 0.35
+	return {
+		x = math.cos(a) * WorldLayout.ISLAND_RING,
+		z = WorldLayout.MAP_CENTER_Z + math.sin(a) * WorldLayout.ISLAND_RING,
+	}
+end
+
 -- Where each expansion ZONE sits inside a plot (local to plot centre). These are reserved now with
 -- "soon" markers; the systems (house/animals/utility/orchard) drop into the space in later layers.
 local ZONES: { [string]: { x: number, z: number } } = {

@@ -94,6 +94,39 @@ local function mkMarket(x: number, z: number, parent: Instance, label: string)
 	mkBillboard(m, 8, 1.6, 7).Text = label
 end
 
+local ISLAND_NAMES = {
+	"Sunny Beach", "Whispering Woods", "Frostpeak", "Volcano Isle", "Golden Dunes",
+	"Crystal Cove", "Mushroom Grove", "Windy Cliffs", "Coral Reef", "Misty Highlands",
+}
+local ISLAND_COLOR = {
+	Color3.fromRGB(232, 214, 150), Color3.fromRGB(70, 130, 70), Color3.fromRGB(225, 235, 245),
+	Color3.fromRGB(90, 60, 55), Color3.fromRGB(224, 196, 120), Color3.fromRGB(150, 130, 200),
+	Color3.fromRGB(120, 160, 90), Color3.fromRGB(140, 150, 130), Color3.fromRGB(120, 190, 180),
+	Color3.fromRGB(150, 160, 170),
+}
+
+-- Build one organic (non-circular) island from overlapping rotated flat boxes.
+local function buildIsland(i: number, center: { x: number, z: number }, parent: Instance)
+	local model = Instance.new("Model")
+	model.Name = "Island" .. i
+	model.Parent = parent
+	local color = ISLAND_COLOR[i] or C_GRASS
+	local S = WorldLayout.ISLAND_SIZE
+	mkPart("LandCore", Vector3.new(S * 0.55, 6, S * 0.55), CFrame.new(center.x, 1, center.z), color, model, Enum.Material.Grass)
+	for k = 0, 11 do
+		local ang = k / 12 * math.pi * 2
+		local bx = center.x + math.cos(ang) * S * 0.26
+		local bz = center.z + math.sin(ang) * S * 0.26
+		local w = math.abs(S * (0.3 + 0.16 * math.sin(k * 1.7 + i)))
+		local d = math.abs(S * (0.3 + 0.16 * math.cos(k * 1.9 + i)))
+		mkPart("Land", Vector3.new(w, 6, d), CFrame.new(bx, 1, bz) * CFrame.Angles(0, ang, 0), color, model, Enum.Material.Grass)
+	end
+	local sign = mkPart("IslandSign", Vector3.new(3, 14, 3), CFrame.new(center.x, 7, center.z), Color3.fromRGB(120, 95, 70), model)
+	mkBillboard(sign, 14, 2.4, 9).Text = "🏝️ " .. (ISLAND_NAMES[i] or ("Island " .. i))
+	local back = mkPrompt(sign, "Sail back to plaza", "sailback")
+	back.MaxActivationDistance = 20
+end
+
 -- Build the whole static world once.
 function World.build()
 	pcall(function()
@@ -217,7 +250,26 @@ function World.build()
 		sections[i] = { ownerLabel = ownerLabel, pads = pads }
 	end
 
-	print(string.format("[Bloomly] world built: %d plots (300x300), %d pads, %d instances", Config.PLOT_SECTIONS, Config.PLOT_SECTIONS * Config.PLOT_COUNT, #rootF:GetDescendants()))
+	-- ocean + 10 islands far out
+	mkPart("Ocean", Vector3.new(WorldLayout.ISLAND_RING * 2.6, 2, WorldLayout.ISLAND_RING * 2.6), CFrame.new(0, -4, WorldLayout.MAP_CENTER_Z), Color3.fromRGB(58, 120, 190), rootF, Enum.Material.Water)
+	for i = 1, WorldLayout.ISLAND_COUNT do
+		buildIsland(i, WorldLayout.islandCenter(i), rootF)
+	end
+
+	-- harbor in the plaza: a dock + a boat per island (sail = teleport for now)
+	do
+		local dockZ = WorldLayout.PLAZA_Z - 70
+		mkPart("Dock", Vector3.new(WorldLayout.ISLAND_COUNT * 13, 1, 40), CFrame.new(0, 0.6, dockZ), Color3.fromRGB(150, 120, 90), rootF, Enum.Material.WoodPlanks)
+		for i = 1, WorldLayout.ISLAND_COUNT do
+			local sx = (i - (WorldLayout.ISLAND_COUNT + 1) / 2) * 13
+			local boat = mkPart("Boat" .. i, Vector3.new(9, 3, 5), CFrame.new(sx, 2, dockZ - 24), Color3.fromRGB(140, 90, 60), rootF, Enum.Material.WoodPlanks)
+			local pr = mkPrompt(boat, "Sail to " .. (ISLAND_NAMES[i] or ("Island " .. i)), "sail")
+			pr:SetAttribute("islandIndex", i)
+		end
+		mkBillboard(mkPart("HarborSign", Vector3.new(3, 12, 3), CFrame.new(0, 6, dockZ + 16), Color3.fromRGB(120, 95, 70), rootF), 14, 2, 8).Text = "⚓ Harbor — sail to the islands"
+	end
+
+	print(string.format("[Bloomly] world built: %d plots (300x300), %d pads, %d islands, %d instances", Config.PLOT_SECTIONS, Config.PLOT_SECTIONS * Config.PLOT_COUNT, WorldLayout.ISLAND_COUNT, #rootF:GetDescendants()))
 end
 
 -- Render a player's garden onto their plot (server-side => everyone sees it).

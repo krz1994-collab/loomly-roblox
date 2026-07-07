@@ -130,6 +130,23 @@ local function applyVehicleSpeed(player: Player)
 	hum.WalkSpeed = BASE_WALKSPEED * (veh and veh.speed or 1)
 end
 
+-- Generic teleport (used by harbor sailing). Streams the destination in first (huge map).
+local function teleportPlayerTo(player: Player, x: number, z: number)
+	local char = player.Character
+	if not char then
+		return
+	end
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp then
+		return
+	end
+	local target = Vector3.new(x, 10, z)
+	pcall(function()
+		player:RequestStreamAroundAsync(target)
+	end)
+	;(hrp :: BasePart).CFrame = CFrame.new(target)
+end
+
 -- ---- lifecycle ------------------------------------------------------------------
 local function onPlayerAdded(player: Player)
 	local state = PlayerData.load(player) -- loads authoritative state (DataStore in load())
@@ -279,6 +296,14 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 			applyVehicleSpeed(player)
 			pushState(player)
 		end
+	elseif kind == "sail" then
+		local idx = prompt:GetAttribute("islandIndex")
+		if type(idx) == "number" then
+			local c = WorldLayout.islandCenter(idx)
+			teleportPlayerTo(player, c.x, c.z)
+		end
+	elseif kind == "sailback" then
+		teleportPlayerTo(player, 0, WorldLayout.PLAZA_Z)
 	end
 end)
 
