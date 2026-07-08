@@ -1320,6 +1320,31 @@ if ok and view then
 	render(view)
 end
 
+-- ================= DECLUTTER: collapse the corner buttons under one ☰ Menu =================
+-- The 7 side buttons (Shop/Bag/Trade/Map/Help/Codex/Seeds) stacked on the right were too much on a
+-- phone. Tuck them behind a single ☰ button: on touch they start HIDDEN (tap ☰ to reveal), on desktop
+-- they show by default. Frees the screen so you can see the game + move.
+do
+	local menuButtons = { shopBtn, bagBtn, tradeBtn, mapBtn, helpBtn, codexBtn, seedsBtn }
+	local menuBtn = mkBtn(gui, "☰ Menu", 90, Color3.fromRGB(60, 70, 90))
+	menuBtn.Position = UDim2.new(1, -104, 0, 92)
+	menuBtn.ZIndex = 15
+	local open = not isTouchDevice -- desktop: open by default; phone: collapsed until tapped
+	local function refresh()
+		for _, b in menuButtons do
+			if b then
+				b.Visible = open
+			end
+		end
+		menuBtn.Text = open and "✕ Close" or "☰ Menu"
+	end
+	refresh()
+	menuBtn.Activated:Connect(function()
+		open = not open
+		refresh()
+	end)
+end
+
 -- ================= MOBILE: fit every popup panel to the screen =================
 -- Cap each big popup to the screen width (centred), so on a phone nothing spills off the edges. On a
 -- big screen the UISizeConstraint keeps the original size. Height stays fixed (content scrolls inside).
