@@ -269,12 +269,77 @@ end
 local lastInventory: { any } = {} -- most recent inventory snapshot (for the trade offer picker)
 local lastSection: number? = nil -- the player's own plot section (for the "your farm" map dot)
 
+-- ---- juice: floating popups + level-up flash ----
+local function floatPopup(text: string, color: Color3)
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(0, 240, 0, 40)
+	lbl.Position = UDim2.new(0.5, -120, 0.62, 0)
+	lbl.BackgroundTransparency = 1
+	lbl.TextColor3 = color
+	lbl.TextStrokeTransparency = 0.35
+	lbl.Font = Enum.Font.GothamBold
+	lbl.TextSize = 26
+	lbl.Text = text
+	lbl.ZIndex = 30
+	lbl.Parent = gui
+	task.spawn(function()
+		for i = 0, 22 do
+			lbl.Position = UDim2.new(0.5, -120, 0.62 - i * 0.013, 0)
+			lbl.TextTransparency = i / 22
+			lbl.TextStrokeTransparency = 0.35 + i * 0.03
+			task.wait(0.03)
+		end
+		lbl:Destroy()
+	end)
+end
+
+local function levelUpFlash(n: number)
+	local f = Instance.new("TextLabel")
+	f.Size = UDim2.new(0, 520, 0, 70)
+	f.Position = UDim2.new(0.5, -260, 0.35, 0)
+	f.BackgroundTransparency = 1
+	f.TextColor3 = Color3.fromRGB(255, 225, 90)
+	f.TextStrokeTransparency = 0.3
+	f.Font = Enum.Font.GothamBlack
+	f.TextSize = 46
+	f.Text = "⭐ LEVEL UP!  Lv " .. n
+	f.ZIndex = 31
+	f.Parent = gui
+	task.spawn(function()
+		for i = 0, 34 do
+			f.TextSize = 46 + math.sin(i / 34 * math.pi) * 10
+			f.TextTransparency = math.max(0, (i - 20) / 14)
+			f.TextStrokeTransparency = 0.3 + math.max(0, (i - 20) / 14)
+			task.wait(0.04)
+		end
+		f:Destroy()
+	end)
+end
+
+local prev = { coins = nil :: number?, xp = nil :: number?, level = nil :: number? }
+
 local function render(view: any)
 	stats.Text = string.format("🪙 %d    Lv %d (%d xp)    📖 %d    🌾 %d%s", view.coins, view.level, view.xp, view.codexCount, view.harvests, (view.pet and view.pet ~= "" and ("    " .. view.pet)) or "")
 
 	hideLoading() -- first authoritative state arrived -> reveal the world
 	lastInventory = view.inventory or {}
 	lastSection = view.section or lastSection
+
+	-- juice: pop floating rewards + a level-up flash when the numbers jump up
+	if prev.coins ~= nil then
+		local dc = view.coins - (prev.coins :: number)
+		if dc > 0 then
+			floatPopup("+" .. dc .. " 🪙", Color3.fromRGB(255, 220, 90))
+		end
+		local dx = view.xp - (prev.xp :: number)
+		if dx > 0 then
+			floatPopup("+" .. dx .. " xp", Color3.fromRGB(150, 220, 255))
+		end
+		if view.level > (prev.level :: number) then
+			levelUpFlash(view.level)
+		end
+	end
+	prev.coins, prev.xp, prev.level = view.coins, view.xp, view.level
 	local count, worth = 0, 0
 	for _, item in view.inventory do
 		count += item.qty

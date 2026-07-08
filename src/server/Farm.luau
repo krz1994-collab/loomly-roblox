@@ -231,12 +231,15 @@ function Farm.buildView(state: PlayerState, ownedPlots: number)
 		if plot.seedId then
 			local plant = Plants.get(plot.seedId)
 			local secondsLeft = math.max(0, math.ceil((plot.readyAt :: number) - t))
+			-- how grown this crop is (0 = just planted, 1 = ready) so the 3D crop can scale as it grows
+			local grownFrac = if plant then math.clamp(1 - secondsLeft / math.max(1, plant.growMs / 1000), 0, 1) else 1
 			plots[i] = {
 				index = i,
 				seedId = plot.seedId,
 				emoji = if plant then plant.emoji else "?",
 				ready = secondsLeft <= 0,
 				secondsLeft = secondsLeft,
+				grownFrac = grownFrac,
 				locked = locked,
 			}
 		else

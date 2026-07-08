@@ -347,7 +347,16 @@ function World.build()
 			prompt.Enabled = false
 			prompt:SetAttribute("section", i)
 			prompt:SetAttribute("plotIndex", j)
-			pads[j] = { pad = pad, prompt = prompt, cropLabel = mkBillboard(pad, 4, 2.4, 4) }
+			-- a real crop object that GROWS: a stalk that scales from sprout to full, hidden when empty,
+			-- with a soft glow that turns on when the crop is ready to harvest.
+			local crop = mkPart("Crop" .. j, Vector3.new(2, 2, 2), CFrame.new(c.x + o.x, padY + 1, c.z + o.z), C_GROWING, plot, Enum.Material.Grass)
+			crop.Transparency = 1
+			local glow = Instance.new("PointLight")
+			glow.Color = Color3.fromRGB(140, 255, 150)
+			glow.Range = 12
+			glow.Brightness = 0
+			glow.Parent = crop
+			pads[j] = { pad = pad, prompt = prompt, cropLabel = mkBillboard(pad, 4, 2.4, 4), crop = crop, glow = glow, cropY = padY }
 		end
 
 		-- a lamppost at the plot's front-left corner (lines the streets)
@@ -466,24 +475,53 @@ function World.renderSection(section: number, ownerName: string, view: any)
 	for j = 1, Config.PLOT_COUNT do
 		local pad = s.pads[j]
 		local p = view.plots[j]
+		-- helper: shape the 3D crop for a growth fraction (0..1); `readyGlow` lights it up when ripe
+		local function showCrop(frac: number, color: Color3, readyGlow: boolean)
+			if not pad.crop then
+				return
+			end
+			local h = 1 + frac * 5
+			local w = 1.4 + frac * 1.6
+			local cp = pad.crop.Position
+			pad.crop.Size = Vector3.new(w, h, w)
+			pad.crop.CFrame = CFrame.new(cp.X, pad.cropY + 0.5 + h / 2, cp.Z)
+			pad.crop.Color = color
+			pad.crop.Transparency = 0
+			if pad.glow then
+				pad.glow.Brightness = readyGlow and 2.2 or 0
+			end
+		end
+		local function hideCrop()
+			if pad.crop then
+				pad.crop.Transparency = 1
+			end
+			if pad.glow then
+				pad.glow.Brightness = 0
+			end
+		end
+
 		if p and p.locked then
 			pad.pad.Color = Color3.fromRGB(70, 70, 75)
 			pad.cropLabel.Text = "🔒"
 			pad.prompt.Enabled = false
+			hideCrop()
 		elseif not p or p.seedId == nil then
 			pad.pad.Color = C_EMPTY
 			pad.cropLabel.Text = ""
 			pad.prompt.ActionText = "Plant"
 			pad.prompt.Enabled = true
+			hideCrop()
 		elseif p.ready then
 			pad.pad.Color = C_READY
 			pad.cropLabel.Text = p.emoji .. "\n✅ READY"
 			pad.prompt.ActionText = "Harvest"
 			pad.prompt.Enabled = true
+			showCrop(1, Color3.fromRGB(130, 235, 115), true) -- full grown + glowing
 		else
 			pad.pad.Color = C_GROWING
 			pad.cropLabel.Text = p.emoji .. "\n🌱 " .. p.secondsLeft .. "s"
 			pad.prompt.Enabled = false
+			showCrop(p.grownFrac or 0, Color3.fromRGB(95, 175, 85), false) -- scales as it grows
 		end
 	end
 end
@@ -501,6 +539,12 @@ function World.clearSection(section: number)
 		pad.pad.Color = C_EMPTY
 		pad.cropLabel.Text = ""
 		pad.prompt.Enabled = false
+		if pad.crop then
+			pad.crop.Transparency = 1
+		end
+		if pad.glow then
+			pad.glow.Brightness = 0
+		end
 	end
 end
 
