@@ -102,6 +102,30 @@ local function mkSparkle(parent: BasePart, color: Color3, rate: number): Particl
 	return pe
 end
 
+-- A little blocky CHARACTER (a "ludek": legs, torso, arms, head) instead of a plain block, so NPCs
+-- look like people. Anchored; wanderers are moved with Model:PivotTo. Feet sit at y=0 (ground top).
+local NPC_SKIN = { Color3.fromRGB(255, 220, 180), Color3.fromRGB(232, 190, 150), Color3.fromRGB(200, 150, 110), Color3.fromRGB(160, 112, 80) }
+local NPC_SHIRT = { Color3.fromRGB(80, 140, 220), Color3.fromRGB(220, 90, 90), Color3.fromRGB(90, 190, 120), Color3.fromRGB(235, 190, 70), Color3.fromRGB(160, 120, 220), Color3.fromRGB(90, 190, 200) }
+local function mkCharacter(id: string, x: number, z: number, seed: number): (Model, BasePart)
+	local model = Instance.new("Model")
+	model.Name = "Npc_" .. id
+	model.Parent = rootF
+	local skin = NPC_SKIN[(seed % #NPC_SKIN) + 1]
+	local shirt = NPC_SHIRT[(seed % #NPC_SHIRT) + 1]
+	local function part(nm: string, size: Vector3, ox: number, oy: number, color: Color3): Part
+		return mkPart(nm, size, CFrame.new(x + ox, oy, z), color, model)
+	end
+	part("LegL", Vector3.new(1.4, 5, 1.4), -1, 2.5, Color3.fromRGB(55, 65, 85))
+	part("LegR", Vector3.new(1.4, 5, 1.4), 1, 2.5, Color3.fromRGB(55, 65, 85))
+	local torso = part("Torso", Vector3.new(4, 5, 2), 0, 7.5, shirt)
+	part("ArmL", Vector3.new(1.4, 5, 1.4), -2.7, 7.5, skin)
+	part("ArmR", Vector3.new(1.4, 5, 1.4), 2.7, 7.5, skin)
+	local head = part("Head", Vector3.new(2.4, 2.4, 2.4), 0, 11.2, skin)
+	head.Material = Enum.Material.SmoothPlastic
+	model.PrimaryPart = torso
+	return model, torso
+end
+
 local function mkLamppost(x: number, z: number, parent: Instance)
 	mkPart("LampPost", Vector3.new(1.2, 22, 1.2), CFrame.new(x, 11, z), Color3.fromRGB(60, 55, 50), parent)
 	local head = mkPart("LampHead", Vector3.new(3, 3, 3), CFrame.new(x, 22.5, z), C_LAMP, parent, Enum.Material.Neon)
@@ -585,29 +609,47 @@ function World.build()
 		mkGather("IsleGather" .. tostring(gi), c.x - 45 + (gi % 2) * 90, c.z + (gi % 3) * 22, Vector3.new(9, 5, 9), Color3.fromRGB(140, 130, 120), Enum.Material.Rock, g[2] :: string, g[3] :: string, g[4] :: string, g[5] :: string, rootF)
 	end
 
-	-- NPCs: plaza NPCs ring the plaza; island NPCs stand on their island
+	-- NPCs are little people (ludki) SCATTERED across the whole map; island NPCs stand on their island;
+	-- wanderers actually walk around their spot.
 	do
-		local plazaNpcs = {}
+		local wanderers = {}
+		local seed = 0
+		local mapMidZ = (WorldLayout.GRID_START_Z + gridD) / 2 - 200
 		for _, npc in Npcs.list do
+			seed += 1
+			local x, z
 			if npc.island then
 				local c = WorldLayout.islandCenter(npc.island)
-				local body = mkPart("Npc_" .. npc.id, Vector3.new(3, 6, 3), CFrame.new(c.x, 5, c.z + 30), Color3.fromRGB(205, 180, 150), rootF)
-				local pr = mkPrompt(body, "Talk", "talk")
-				pr:SetAttribute("npc", npc.id)
-				mkBillboard(body, 9, 1.8, 5).Text = npc.emoji .. " " .. npc.name
+				x, z = c.x, c.z + 30
+			elseif npc.id == "willow" or npc.id == "pip" then
+				-- keep the starter NPCs (quest-giver Willow + seed shop Pip) right by spawn
+				x, z = (npc.id == "pip" and 22 or -22), WorldLayout.PLAZA_Z + 26
 			else
-				table.insert(plazaNpcs, npc)
+				-- golden-angle scatter across the mainland so shopkeepers/NPCs are spread out, not clumped
+				local a = seed * 2.39996
+				local r = 260 + (seed % 9) * 200
+				x, z = math.cos(a) * r, mapMidZ + math.sin(a) * r
+			end
+			local model, torso = mkCharacter(npc.id, x, z, seed)
+			local pr = mkPrompt(torso, "Talk", "talk")
+			pr:SetAttribute("npc", npc.id)
+			mkBillboard(torso, 11, 2, 8).Text = npc.emoji .. " " .. npc.name
+			if npc.behavior == "W" and not npc.island then
+				table.insert(wanderers, { model = model, hx = x, hz = z, a = (seed % 7) * 0.9 })
 			end
 		end
-		for idx, npc in plazaNpcs do
-			local a = (idx / #plazaNpcs) * math.pi * 2
-			local r = WorldLayout.PLAZA_RADIUS + 14
-			local x, z = math.cos(a) * r, WorldLayout.PLAZA_Z + math.sin(a) * r
-			local body = mkPart("Npc_" .. npc.id, Vector3.new(3, 6, 3), CFrame.new(x, 3, z), Color3.fromRGB(205, 180, 150), rootF)
-			local pr = mkPrompt(body, "Talk", "talk")
-			pr:SetAttribute("npc", npc.id)
-			mkBillboard(body, 9, 1.8, 5).Text = npc.emoji .. " " .. npc.name
-		end
+		-- wander loop: gently walk the "W" NPCs around their home spot
+		task.spawn(function()
+			while true do
+				task.wait(0.15)
+				for _, w in wanderers do
+					w.a += 0.05
+					local ox = math.cos(w.a) * 26
+					local oz = math.sin(w.a * 0.7) * 26
+					w.model:PivotTo(CFrame.new(w.hx + ox, 7.5, w.hz + oz) * CFrame.Angles(0, -w.a, 0))
+				end
+			end
+		end)
 	end
 
 	-- harbor in the plaza: a dock + a boat per island (sail = teleport for now)
