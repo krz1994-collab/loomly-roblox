@@ -10,6 +10,7 @@ local WorldLayout = require(ReplicatedStorage.Bloomly.data.WorldLayout)
 local Catalog = require(ReplicatedStorage.Bloomly.data.Catalog)
 local Npcs = require(ReplicatedStorage.Bloomly.data.Npcs)
 local Monsters = require(ReplicatedStorage.Bloomly.data.Monsters)
+local City = require(ReplicatedStorage.Bloomly.data.City)
 local Upgrades = require(ReplicatedStorage.Bloomly.data.Upgrades)
 local TreasureRules = require(ReplicatedStorage.Bloomly.TreasureRules)
 
@@ -123,6 +124,11 @@ local function mkCharacter(id: string, x: number, z: number, seed: number): (Mod
 	part("ArmR", Vector3.new(1.4, 5, 1.4), 2.7, 7.5, skin)
 	local head = part("Head", Vector3.new(2.4, 2.4, 2.4), 0, 11.2, skin)
 	head.Material = Enum.Material.SmoothPlastic
+	-- a little FACE on the head front (-z) so the "ludek" reads as a person: two eyes + hair + a smile
+	mkPart("HairN" .. id, Vector3.new(2.7, 0.9, 2.7), CFrame.new(x, 12.5, z), Color3.fromRGB(60, 45, 35), model)
+	mkPart("EyeLN" .. id, Vector3.new(0.5, 0.5, 0.3), CFrame.new(x - 0.55, 11.5, z - 1.25), Color3.fromRGB(35, 30, 30), model)
+	mkPart("EyeRN" .. id, Vector3.new(0.5, 0.5, 0.3), CFrame.new(x + 0.55, 11.5, z - 1.25), Color3.fromRGB(35, 30, 30), model)
+	mkPart("MouthN" .. id, Vector3.new(1.1, 0.3, 0.3), CFrame.new(x, 10.7, z - 1.25), Color3.fromRGB(150, 80, 70), model)
 	model.PrimaryPart = torso
 	return model, torso
 end
@@ -171,6 +177,29 @@ local function mkGather(name: string, x: number, z: number, size: Vector3, color
 	pr:SetAttribute("list", list)
 	pr.HoldDuration = 0.4
 	mkBillboard(node, 6, 1.4, size.Y + 2).Text = label
+end
+
+-- A proper CITY BUILDING that faces the town centre: walls + roof + door + windows + a big rooftop sign,
+-- with a "ludek" shopkeeper standing out front. Rotated (lookAt) so the door/greeter face the plaza.
+local function mkBuilding(x: number, z: number, w: number, d: number, h: number, color: Color3, emoji: string, name: string, seed: number, parent: Instance)
+	local model = Instance.new("Model")
+	model.Name = "Bld_" .. (name:gsub("%s", ""))
+	model.Parent = parent
+	local bcf = CFrame.lookAt(Vector3.new(x, 0, z), Vector3.new(0, 0, 0))
+	local function place(lx: number, ly: number, lz: number): CFrame
+		return bcf * CFrame.new(lx, ly, lz)
+	end
+	local base = mkPart("Wall", Vector3.new(w, h, d), place(0, h / 2, 0), color, model)
+	mkPart("Roof", Vector3.new(w + 4, 2.5, d + 4), place(0, h + 1.2, 0), Color3.fromRGB(96, 74, 60), model, Enum.Material.Slate)
+	mkPart("Door", Vector3.new(7, 9, 1), place(0, 4.5, -d / 2 - 0.6), Color3.fromRGB(78, 54, 40), model, Enum.Material.WoodPlanks)
+	mkPart("Win1", Vector3.new(5, 5, 1), place(-w / 4, h * 0.62, -d / 2 - 0.6), Color3.fromRGB(150, 205, 235), model, Enum.Material.Glass)
+	mkPart("Win2", Vector3.new(5, 5, 1), place(w / 4, h * 0.62, -d / 2 - 0.6), Color3.fromRGB(150, 205, 235), model, Enum.Material.Glass)
+	mkBillboard(base, 16, 2.6, h / 2 + 4).Text = emoji .. " " .. name
+	-- greeter NPC out front (faces the plaza too). Feet at ground; front is toward the centre.
+	local front = place(0, 0, -d / 2 - 7)
+	local gm, gt = mkCharacter("shop_" .. seed, front.X, front.Z, seed)
+	mkBillboard(gt, 12, 2, 8).Text = emoji
+	return model
 end
 
 local ISLAND_NAMES = {
@@ -468,6 +497,32 @@ function World.build()
 		end
 	end
 
+	-- ===== THE CITY: a ring of civic buildings around the town centre so the middle of the island is a
+	-- real town (hospital, car dealer, bike shop, bank, school, cafe, cinema, police...), each with a
+	-- shopkeeper "ludek" out front. They sit between the plaza and the first ring of farms.
+	do
+		for k, b in City.buildings do
+			local c = City.centerOf(k) -- shared with the map, so markers never drift from the buildings
+			local w = 26 + (k % 3) * 6
+			local h = 20 + (k % 4) * 6
+			local col = Color3.fromRGB(b.color[1], b.color[2], b.color[3])
+			mkBuilding(c.x, c.z, w, 22, h, col, b.emoji, b.name, 700 + k, rootF)
+		end
+		-- park + fishing spots + street benches so the town uses its space and has "random city things"
+		local benchCol = Color3.fromRGB(120, 90, 60)
+		for k = 1, 10 do
+			local a = k / 10 * math.pi * 2 + 0.5
+			local r = 300 + (k % 4) * 30
+			mkPart("Bench" .. k, Vector3.new(8, 2, 2.4), CFrame.new(math.cos(a) * r, 1, math.sin(a) * r) * CFrame.Angles(0, -a, 0), benchCol, rootF, Enum.Material.WoodPlanks)
+		end
+		-- three town fishing spots (ponds) tucked into the coastal belt gaps
+		for k = 1, 3 do
+			local a = k / 3 * math.pi * 2 + 1.1
+			local r = 2360
+			mkGather("TownPond" .. k, math.cos(a) * r, math.sin(a) * r, Vector3.new(26, 2, 26), Color3.fromRGB(70, 130, 200), Enum.Material.Water, "Fish", "fish", "fish", "🎣 Fishing Spot", rootF)
+		end
+	end
+
 	-- the 100 personal plots
 	local half = WorldLayout.SECTION_SIZE / 2
 	local padY = 1.1
@@ -477,28 +532,36 @@ function World.build()
 		plot.Name = "Plot" .. i
 		plot.Parent = rootF
 
+		-- RADIAL: rotate the whole plot so its GATEWAY + crop field face the central plaza (the plot's local
+		-- -z / "front" points at 0,0), and the house/pen sit at the back. Every part is placed via plotCF so
+		-- the fences, pads, crops + gate all turn together. `place(lx,ly,lz)` = local offset -> world CFrame.
+		local plotCF = CFrame.lookAt(Vector3.new(c.x, 0, c.z), Vector3.new(0, 0, 0))
+		local function place(lx: number, ly: number, lz: number): CFrame
+			return plotCF * CFrame.new(lx, ly, lz)
+		end
+
 		-- raised green platform (=> the grey road base shows in the gaps)
-		local platform = mkPart("Grass", Vector3.new(WorldLayout.SECTION_SIZE, 1, WorldLayout.SECTION_SIZE), CFrame.new(c.x, 0.5, c.z), C_GRASS, plot, Enum.Material.Grass)
+		local platform = mkPart("Grass", Vector3.new(WorldLayout.SECTION_SIZE, 1, WorldLayout.SECTION_SIZE), place(0, 0.5, 0), C_GRASS, plot, Enum.Material.Grass)
 		plot.PrimaryPart = platform
 
-		-- low fence around the plot, with a wide GATEWAY (arch) in the front so you can walk in/out
+		-- low fence around the plot, with a wide GATEWAY (arch) in the front (facing the plaza)
 		local fh, ft = 4, 0.6
 		local gap = 60 -- width of the front gateway
 		local segW = (WorldLayout.SECTION_SIZE - gap) / 2
 		local segX = (gap + segW) / 2 -- centre offset of each front fence segment
-		mkPart("FenceN1", Vector3.new(segW, fh, ft), CFrame.new(c.x - segX, fh / 2 + 1, c.z - half), C_FENCE, plot)
-		mkPart("FenceN2", Vector3.new(segW, fh, ft), CFrame.new(c.x + segX, fh / 2 + 1, c.z - half), C_FENCE, plot)
+		mkPart("FenceN1", Vector3.new(segW, fh, ft), place(-segX, fh / 2 + 1, -half), C_FENCE, plot)
+		mkPart("FenceN2", Vector3.new(segW, fh, ft), place(segX, fh / 2 + 1, -half), C_FENCE, plot)
 		local gpH = 12 -- tall gate posts + a top beam so the gateway reads as an obvious opening
-		mkPart("GateL", Vector3.new(2.5, gpH, 2.5), CFrame.new(c.x - gap / 2, gpH / 2 + 1, c.z - half), Color3.fromRGB(150, 110, 70), plot)
-		mkPart("GateR", Vector3.new(2.5, gpH, 2.5), CFrame.new(c.x + gap / 2, gpH / 2 + 1, c.z - half), Color3.fromRGB(150, 110, 70), plot)
-		mkPart("GateTop", Vector3.new(gap + 6, 2.5, 2.5), CFrame.new(c.x, gpH + 1, c.z - half), Color3.fromRGB(150, 110, 70), plot)
-		mkBillboard(mkPart("GateSign", Vector3.new(0.5, 0.5, 0.5), CFrame.new(c.x, gpH + 4, c.z - half), C_FENCE, plot), 10, 1.6, 0).Text = "🚪 Gate (walk through here)"
-		mkPart("FenceS", Vector3.new(WorldLayout.SECTION_SIZE, fh, ft), CFrame.new(c.x, fh / 2 + 1, c.z + half), C_FENCE, plot)
-		mkPart("FenceW", Vector3.new(ft, fh, WorldLayout.SECTION_SIZE), CFrame.new(c.x - half, fh / 2 + 1, c.z), C_FENCE, plot)
-		mkPart("FenceE", Vector3.new(ft, fh, WorldLayout.SECTION_SIZE), CFrame.new(c.x + half, fh / 2 + 1, c.z), C_FENCE, plot)
+		mkPart("GateL", Vector3.new(2.5, gpH, 2.5), place(-gap / 2, gpH / 2 + 1, -half), Color3.fromRGB(150, 110, 70), plot)
+		mkPart("GateR", Vector3.new(2.5, gpH, 2.5), place(gap / 2, gpH / 2 + 1, -half), Color3.fromRGB(150, 110, 70), plot)
+		mkPart("GateTop", Vector3.new(gap + 6, 2.5, 2.5), place(0, gpH + 1, -half), Color3.fromRGB(150, 110, 70), plot)
+		mkBillboard(mkPart("GateSign", Vector3.new(0.5, 0.5, 0.5), place(0, gpH + 4, -half), C_FENCE, plot), 10, 1.6, 0).Text = "🚪 Gate (walk through here)"
+		mkPart("FenceS", Vector3.new(WorldLayout.SECTION_SIZE, fh, ft), place(0, fh / 2 + 1, half), C_FENCE, plot)
+		mkPart("FenceW", Vector3.new(ft, fh, WorldLayout.SECTION_SIZE), place(-half, fh / 2 + 1, 0), C_FENCE, plot)
+		mkPart("FenceE", Vector3.new(ft, fh, WorldLayout.SECTION_SIZE), place(half, fh / 2 + 1, 0), C_FENCE, plot)
 
-		-- owner sign + name at the front (entrance) edge
-		local post = mkPart("OwnerPost", Vector3.new(2, 10, 2), CFrame.new(c.x, 5, c.z - half - 4), Color3.fromRGB(120, 95, 70), plot)
+		-- owner sign + name at the front (entrance) edge, facing the plaza
+		local post = mkPart("OwnerPost", Vector3.new(2, 10, 2), place(0, 5, -half - 4), Color3.fromRGB(120, 95, 70), plot)
 		local ownerLabel = mkBillboard(post, 12, 2.2, 7)
 		ownerLabel.Text = "· free plot ·"
 		ownerLabel.TextColor3 = Color3.fromRGB(225, 225, 225)
@@ -507,7 +570,7 @@ function World.build()
 		for _, name in WorldLayout.zoneNames() do
 			local o = WorldLayout.zoneOffset(name)
 			if o then
-				local zp = mkPart("Zone_" .. name, Vector3.new(70, 1.2, 70), CFrame.new(c.x + o.x, 1.1, c.z + o.z), ZONE_COLOR[name] or C_GRASS, plot)
+				local zp = mkPart("Zone_" .. name, Vector3.new(70, 1.2, 70), place(o.x, 1.1, o.z), ZONE_COLOR[name] or C_GRASS, plot)
 				mkBillboard(zp, 10, 1.8, 6).Text = ZONE_TEXT[name] or name
 			end
 		end
@@ -516,14 +579,14 @@ function World.build()
 		local pads: { [number]: any } = {}
 		for j = 1, Config.PLOT_COUNT do
 			local o = WorldLayout.plotPadOffset(j, Config.PLOT_COUNT)
-			local pad = mkPart("Pad" .. j, Vector3.new(WorldLayout.PAD_SIZE, 1, WorldLayout.PAD_SIZE), CFrame.new(c.x + o.x, padY, c.z + o.z), C_EMPTY, plot)
+			local pad = mkPart("Pad" .. j, Vector3.new(WorldLayout.PAD_SIZE, 1, WorldLayout.PAD_SIZE), place(o.x, padY, o.z), C_EMPTY, plot)
 			local prompt = mkPrompt(pad, "Plant", "plot")
 			prompt.Enabled = false
 			prompt:SetAttribute("section", i)
 			prompt:SetAttribute("plotIndex", j)
 			-- a real crop object that GROWS: a stalk that scales from sprout to full, hidden when empty,
 			-- with a soft glow that turns on when the crop is ready to harvest.
-			local crop = mkPart("Crop" .. j, Vector3.new(2, 2, 2), CFrame.new(c.x + o.x, padY + 1, c.z + o.z), C_GROWING, plot, Enum.Material.Grass)
+			local crop = mkPart("Crop" .. j, Vector3.new(2, 2, 2), place(o.x, padY + 1, o.z), C_GROWING, plot, Enum.Material.Grass)
 			crop.Transparency = 1
 			local glow = Instance.new("PointLight")
 			glow.Color = Color3.fromRGB(140, 255, 150)
@@ -536,11 +599,13 @@ function World.build()
 		end
 
 		-- a lamppost at the plot's front-left corner (lines the streets)
-		mkLamppost(c.x - half - 6, c.z - half - 6, plot)
+		local lp = place(-half - 6, 0, -half - 6)
+		mkLamppost(lp.X, lp.Z, plot)
 
 		-- a scattered Market every 5th plot so selling is handy across the big map
 		if i % 5 == 0 then
-			mkMarket(c.x + half + 20, c.z, rootF, "🧺 Market")
+			local mp = place(half + 20, 0, 0)
+			mkMarket(mp.X, mp.Z, rootF, "🧺 Market")
 		end
 
 		sections[i] = { ownerLabel = ownerLabel, pads = pads }
@@ -755,18 +820,23 @@ function World.build()
 			pr:SetAttribute("npc", npc.id)
 			mkBillboard(torso, 11, 2, 8).Text = npc.emoji .. " " .. npc.name
 			if npc.behavior == "W" and not npc.island then
-				table.insert(wanderers, { model = model, hx = x, hz = z, a = (seed % 7) * 0.9 })
+				table.insert(wanderers, { model = model, hx = x, hz = z, p = seed * 0.7, last = Vector3.new(x, 0, z) })
 			end
 		end
-		-- wander loop: gently walk the "W" NPCs around their home spot
+		-- wander loop: the "W" NPCs stroll around the town on smooth organic paths (layered sines => no
+		-- jerky orbits), FACE the way they're walking, and bob up/down a little so they look like they walk.
 		task.spawn(function()
 			while true do
-				task.wait(0.15)
-				for _, w in wanderers do
-					w.a += 0.05
-					local ox = math.cos(w.a) * 26
-					local oz = math.sin(w.a * 0.7) * 26
-					w.model:PivotTo(CFrame.new(w.hx + ox, 7.5, w.hz + oz) * CFrame.Angles(0, -w.a, 0))
+				task.wait(0.12)
+				local t = os.clock()
+				for i, w in wanderers do
+					local wx = w.hx + math.sin(t * 0.12 + w.p) * 40 + math.sin(t * 0.05 + w.p * 2) * 26
+					local wz = w.hz + math.cos(t * 0.10 + w.p * 1.3) * 40 + math.sin(t * 0.07 + w.p) * 22
+					local dir = Vector3.new(wx - w.last.X, 0, wz - w.last.Z)
+					local yaw = (dir.Magnitude > 0.02) and math.atan2(dir.X, dir.Z) or 0
+					local bob = math.abs(math.sin(t * 6 + i)) * 0.6 -- little walking bounce
+					w.model:PivotTo(CFrame.new(wx, 7.5 + bob, wz) * CFrame.Angles(0, yaw, 0))
+					w.last = Vector3.new(wx, 0, wz)
 				end
 			end
 		end)

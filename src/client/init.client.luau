@@ -644,8 +644,18 @@ local DOT = {
 	plaza = Color3.fromRGB(120, 200, 120),
 	harbor = Color3.fromRGB(120, 160, 220),
 	island = Color3.fromRGB(230, 200, 120),
+	city = Color3.fromRGB(220, 160, 210),
 	you = Color3.fromRGB(255, 90, 90),
 	farm = Color3.fromRGB(120, 255, 160),
+}
+-- legend rows for the full map (colour -> what it marks)
+local LEGEND = {
+	{ DOT.you, "You" },
+	{ DOT.farm, "Your farm" },
+	{ DOT.plaza, "Town centre" },
+	{ DOT.city, "City buildings" },
+	{ DOT.harbor, "Harbor" },
+	{ DOT.island, "Islands" },
 }
 local landmarks = MapData.landmarks()
 
@@ -659,16 +669,22 @@ local function buildMap(sz: number, withLabels: boolean): (Frame, Frame, Frame)
 	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = frame
 	-- ocean ring hint
 	for _, lm in landmarks do
+		-- the 16 city buildings only show on the big map (they'd swamp the 150px minimap)
+		if lm.kind == "city" and not withLabels then
+			continue
+		end
 		local p = MapRules.worldToMap(lm.x, lm.z, MapData.BOUNDS)
 		local dot = Instance.new("Frame")
 		local isIsle = lm.kind == "island"
-		dot.Size = UDim2.new(0, isIsle and 8 or 10, 0, isIsle and 8 or 10)
+		local isCity = lm.kind == "city"
+		dot.Size = UDim2.new(0, isCity and 6 or (isIsle and 8 or 10), 0, isCity and 6 or (isIsle and 8 or 10))
 		dot.Position = UDim2.new(p.u, -4, p.v, -4)
 		dot.BackgroundColor3 = DOT[lm.kind] or Color3.fromRGB(200, 200, 200)
 		dot.BorderSizePixel = 0
 		local dc = Instance.new("UICorner"); dc.CornerRadius = UDim.new(1, 0); dc.Parent = dot
 		dot.Parent = frame
-		if withLabels then
+		-- label islands + town + harbor (not the 16 city dots -- the legend explains those, keeps it clean)
+		if withLabels and not isCity then
 			local lbl = Instance.new("TextLabel")
 			lbl.Size = UDim2.new(0, 90, 0, 14)
 			lbl.Position = UDim2.new(p.u, 6, p.v, -7)
@@ -677,8 +693,39 @@ local function buildMap(sz: number, withLabels: boolean): (Frame, Frame, Frame)
 			lbl.Font = Enum.Font.Gotham
 			lbl.TextSize = 11
 			lbl.TextXAlignment = Enum.TextXAlignment.Left
-			lbl.Text = (lm.kind == "island") and ((lm.island == 11) and "Enchanted Forest" or lm.name) or lm.name
+			lbl.Text = lm.name
 			lbl.Parent = frame
+		end
+	end
+
+	-- LEGEND (full map only): a colour key so you know what every dot means
+	if withLabels then
+		local box = Instance.new("Frame")
+		box.Size = UDim2.new(0, 128, 0, #LEGEND * 16 + 10)
+		box.Position = UDim2.new(0, 6, 1, -(#LEGEND * 16 + 16))
+		box.BackgroundColor3 = Color3.fromRGB(18, 28, 38)
+		box.BackgroundTransparency = 0.2
+		box.BorderSizePixel = 0
+		local bc = Instance.new("UICorner"); bc.CornerRadius = UDim.new(0, 6); bc.Parent = box
+		box.Parent = frame
+		for li, row in LEGEND do
+			local sw = Instance.new("Frame")
+			sw.Size = UDim2.new(0, 10, 0, 10)
+			sw.Position = UDim2.new(0, 8, 0, 6 + (li - 1) * 16)
+			sw.BackgroundColor3 = row[1]
+			sw.BorderSizePixel = 0
+			local sc = Instance.new("UICorner"); sc.CornerRadius = UDim.new(1, 0); sc.Parent = sw
+			sw.Parent = box
+			local lt = Instance.new("TextLabel")
+			lt.Size = UDim2.new(1, -26, 0, 14)
+			lt.Position = UDim2.new(0, 24, 0, 4 + (li - 1) * 16)
+			lt.BackgroundTransparency = 1
+			lt.TextColor3 = Color3.fromRGB(232, 238, 228)
+			lt.Font = Enum.Font.Gotham
+			lt.TextSize = 11
+			lt.TextXAlignment = Enum.TextXAlignment.Left
+			lt.Text = row[2]
+			lt.Parent = box
 		end
 	end
 	-- your-farm dot (position updated when we learn our section)
