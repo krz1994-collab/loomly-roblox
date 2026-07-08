@@ -393,8 +393,29 @@ local function grantOwnedGamepasses(player: Player)
 end
 
 -- ---- lifecycle ------------------------------------------------------------------
+-- ---- Roblox POLICY compliance (PolicyService) ----------------------------------
+-- Per-player region/age policy governs what features we're allowed to show them. We honour:
+--   IsPaidItemTradingAllowed  -> gate the player-to-player TRADE system (see Trade.request)
+--   ArePaidRandomItemsRestricted -> block any paid random item (our eggs use EARNED coins, not Robux,
+--     so they're not "paid random items", but we still record + respect the flag to be safe).
+-- On ANY failure we default to the MOST RESTRICTIVE values (compliant fallback), per Roblox guidance.
+local PolicyService = game:GetService("PolicyService")
+local function fetchPolicy(player: Player)
+	local ok, info = pcall(function()
+		return PolicyService:GetPolicyInfoForPlayerAsync(player)
+	end)
+	if ok and type(info) == "table" then
+		player:SetAttribute("TradeAllowed", info.IsPaidItemTradingAllowed == true)
+		player:SetAttribute("PaidRandomRestricted", info.ArePaidRandomItemsRestricted == true)
+	else
+		player:SetAttribute("TradeAllowed", false) -- unknown -> assume not allowed (safest)
+		player:SetAttribute("PaidRandomRestricted", true)
+	end
+end
+
 local function onPlayerAdded(player: Player)
 	local state = PlayerData.load(player) -- loads authoritative state (DataStore in load())
+	task.spawn(fetchPolicy, player) -- resolve the player's Roblox policy (trading / paid-random gates)
 	task.spawn(grantOwnedGamepasses, player) -- restore any gamepass perks they already own
 	PlotClaim.claim(player) -- assign a free 300x300 plot for this session
 	setupLeaderstats(player, state) -- Coins + Level on the player list

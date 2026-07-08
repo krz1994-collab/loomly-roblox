@@ -124,6 +124,16 @@ function Trade.request(from: Player, targetUserId: number)
 		notify(from, "Can't trade with that player.")
 		return
 	end
+	-- Roblox POLICY gate: both players must be allowed to trade (PolicyService.IsPaidItemTradingAllowed,
+	-- resolved on join into the "TradeAllowed" attribute; nil/false = not allowed).
+	if from:GetAttribute("TradeAllowed") ~= true then
+		notify(from, "Trading isn't available on your account.")
+		return
+	end
+	if target:GetAttribute("TradeAllowed") ~= true then
+		notify(from, target.Name .. " can't trade right now.")
+		return
+	end
 	if sessions[target.UserId] then
 		notify(from, target.Name .. " is already trading.")
 		return
