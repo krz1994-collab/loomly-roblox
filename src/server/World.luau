@@ -219,12 +219,36 @@ function World.build()
 		local z0, z1 = -500, WorldLayout.GRID_START_Z + gridD + 500
 		local nx = math.ceil((x1 - x0) / tile)
 		local nz = math.ceil((z1 - z0) / tile)
+		-- varied ground types so the map is not one flat grey: grass, dirt, stone (all flat + smooth,
+		-- so bikes/cars drive over the whole thing without bumps).
+		local GT = {
+			{ Color3.fromRGB(96, 150, 70), Enum.Material.Grass },
+			{ Color3.fromRGB(112, 162, 82), Enum.Material.Grass },
+			{ Color3.fromRGB(124, 108, 84), Enum.Material.Ground },
+			{ Color3.fromRGB(132, 132, 138), Enum.Material.Slate },
+		}
 		for ix = 0, nx - 1 do
 			for iz = 0, nz - 1 do
 				local cx = x0 + ix * tile + tile / 2
 				local cz = z0 + iz * tile + tile / 2
-				mkPart("GroundTile_" .. ix .. "_" .. iz, Vector3.new(tile, 2, tile), CFrame.new(cx, -1, cz), C_ROAD, rootF, Enum.Material.Ground)
+				local g = GT[((ix + iz * 2) % #GT) + 1]
+				mkPart("GroundTile_" .. ix .. "_" .. iz, Vector3.new(tile, 2, tile), CFrame.new(cx, -1, cz), g[1], rootF, g[2])
 			end
+		end
+	end
+
+	-- scattered rocks/boulders ringing the mainland: scenery you can drive between. They sit in the
+	-- OUTER margin (past the plot grid) so they never block a plot or a road.
+	do
+		local rockCol = { Color3.fromRGB(120, 120, 126), Color3.fromRGB(100, 100, 106), Color3.fromRGB(138, 132, 120) }
+		local gz = (WorldLayout.GRID_START_Z + gridD) / 2 - 200
+		for k = 1, 60 do
+			local a = (k / 60) * math.pi * 2 + (k % 3) * 0.3
+			local r = 1900 + (k % 5) * 150
+			local rx = math.cos(a) * r
+			local rz = gz + math.sin(a) * r
+			local sz = 3 + (k % 6) * 1.4
+			local rock = mkPart("Rock" .. k, Vector3.new(sz, sz * 0.75, sz * (0.8 + (k % 3) * 0.15)), CFrame.new(rx, sz * 0.3, rz) * CFrame.Angles((k % 4) * 0.3, (k % 7) * 0.5, 0), rockCol[(k % 3) + 1], rootF, Enum.Material.Rock)
 		end
 	end
 
