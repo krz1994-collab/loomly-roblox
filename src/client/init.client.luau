@@ -797,6 +797,98 @@ helpClose.ZIndex = 22
 helpClose.Activated:Connect(function() helpPanel.Visible = false end)
 helpBtn.Activated:Connect(function() helpPanel.Visible = not helpPanel.Visible end)
 
+-- ================= INVENTORY (block A) =================
+local bagBtn = mkBtn(gui, "🎒 Bag", 80, Color3.fromRGB(150, 120, 70))
+bagBtn.Position = UDim2.new(1, -104, 0, 164)
+
+local bagPanel = Instance.new("Frame")
+bagPanel.Size = UDim2.new(0, 380, 0, 440)
+bagPanel.Position = UDim2.new(0.5, -190, 0.5, -220)
+bagPanel.BackgroundColor3 = Color3.fromRGB(34, 30, 24)
+bagPanel.BorderSizePixel = 0
+bagPanel.Visible = false
+bagPanel.ZIndex = 20
+bagPanel.Parent = gui
+do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 10); c.Parent = bagPanel end
+local bagTitle = Instance.new("TextLabel")
+bagTitle.Size = UDim2.new(1, 0, 0, 30)
+bagTitle.BackgroundTransparency = 1
+bagTitle.TextColor3 = Color3.fromRGB(245, 235, 210)
+bagTitle.Font = Enum.Font.GothamBold
+bagTitle.TextSize = 16
+bagTitle.Text = "🎒 Inventory"
+bagTitle.ZIndex = 21
+bagTitle.Parent = bagPanel
+local bagScroll = Instance.new("ScrollingFrame")
+bagScroll.Size = UDim2.new(1, -16, 1, -76)
+bagScroll.Position = UDim2.new(0, 8, 0, 34)
+bagScroll.BackgroundTransparency = 1
+bagScroll.BorderSizePixel = 0
+bagScroll.ScrollBarThickness = 6
+bagScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+bagScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+bagScroll.ZIndex = 21
+bagScroll.Parent = bagPanel
+local bsl = Instance.new("UIListLayout"); bsl.Padding = UDim.new(0, 3); bsl.Parent = bagScroll
+local bagClose = mkBtn(bagPanel, "Close", 200, Color3.fromRGB(120, 90, 70))
+bagClose.Position = UDim2.new(0.5, -100, 1, -36)
+bagClose.Size = UDim2.new(0, 200, 0, 30)
+bagClose.ZIndex = 22
+bagClose.Activated:Connect(function() bagPanel.Visible = false end)
+
+-- rarity color for mutations, so rare stacks pop (flex + trade value)
+local RARITY = {
+	bloomly = Color3.fromRGB(255, 120, 220), mythic = Color3.fromRGB(255, 150, 80),
+	celestial = Color3.fromRGB(160, 200, 255), rainbow = Color3.fromRGB(150, 255, 170),
+	frosted = Color3.fromRGB(150, 220, 255), golden = Color3.fromRGB(255, 220, 90),
+	giant = Color3.fromRGB(200, 180, 140), wet = Color3.fromRGB(160, 200, 230),
+}
+
+local function refreshBag()
+	for _, ch in bagScroll:GetChildren() do
+		if ch:IsA("TextLabel") then ch:Destroy() end
+	end
+	local items = {}
+	for _, it in lastInventory do
+		table.insert(items, it)
+	end
+	table.sort(items, function(a, b) return (a.unitValue * a.qty) > (b.unitValue * b.qty) end)
+	local total = 0
+	if #items == 0 then
+		local empty = Instance.new("TextLabel")
+		empty.Size = UDim2.new(1, -6, 0, 30)
+		empty.BackgroundTransparency = 1
+		empty.TextColor3 = Color3.fromRGB(180, 180, 170)
+		empty.Font = Enum.Font.Gotham
+		empty.TextSize = 14
+		empty.Text = "Empty. Plant, fish, mine and forage to fill it up!"
+		empty.ZIndex = 22
+		empty.Parent = bagScroll
+	end
+	for _, it in items do
+		local mut = it.mutationId
+		local name = (mut ~= nil and mut ~= "" and mut ~= "normal") and (mut .. " " .. it.plantId) or it.plantId
+		local row = Instance.new("TextLabel")
+		row.Size = UDim2.new(1, -6, 0, 26)
+		row.BackgroundColor3 = Color3.fromRGB(46, 40, 32)
+		row.TextColor3 = RARITY[mut] or Color3.fromRGB(230, 225, 210)
+		row.Font = Enum.Font.GothamMedium
+		row.TextSize = 14
+		row.TextXAlignment = Enum.TextXAlignment.Left
+		row.Text = string.format("  %s  %s  x%d    (%dc each)", it.emoji or "", name, it.qty, it.unitValue)
+		row.ZIndex = 22
+		row.Parent = bagScroll
+		local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 5); c.Parent = row
+		total += it.unitValue * it.qty
+	end
+	bagTitle.Text = string.format("🎒 Inventory  ·  worth %dc", total)
+end
+
+bagBtn.Activated:Connect(function()
+	bagPanel.Visible = not bagPanel.Visible
+	if bagPanel.Visible then refreshBag() end
+end)
+
 local ok, view = pcall(function()
 	return Remotes.GetState:InvokeServer()
 end)
