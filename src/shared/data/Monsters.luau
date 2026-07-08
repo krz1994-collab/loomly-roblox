@@ -49,5 +49,17 @@ for _, m in Monsters do
 		table.insert(M.Loot, { id = m.loot.id, emoji = m.loot.emoji, sell = m.loot.sell })
 	end
 end
+-- Quest trophy items (from The Hero's Path) so they price + show with a proper emoji.
+local trophies = {
+	{ id = "herocrest", emoji = "🎖️", sell = 500 },
+	{ id = "woolcloak", emoji = "🧥", sell = 300 },
+	{ id = "knightblade", emoji = "⚔️", sell = 1500 },
+	{ id = "dragoncrown", emoji = "👑", sell = 5000 },
+	{ id = "faecrown", emoji = "🌸", sell = 8000 },
+	{ id = "championtrophy", emoji = "🏆", sell = 25000 },
+}
+for _, t in trophies do
+	table.insert(M.Loot, t)
+end
 
 return M

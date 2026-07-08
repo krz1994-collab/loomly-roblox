@@ -64,6 +64,20 @@ local Quests: { any } = {
 
 	-- ── Daily (repeatable-flavored) ──
 	{ id = "daily_harvest", giver = "sunny", name = "Daily Harvest", steps = { { kind = "harvest", target = "any", count = 15 } }, reward = { coins = 50, xp = 25 } },
+
+	-- ══ THE HERO'S PATH (Tibia-style questline: fight, gather, deliver, long chain, big rewards) ══
+	-- Multi-step quests (do this, THEN that, THEN come back). Uses combat (kill/loot) + varied rewards
+	-- (coins, xp, trophy items, island access unlocks, an earned hero aura).
+	{ id = "hero_01", giver = "bay", name = "A Hero Rises", steps = { { kind = "sail", target = "1", count = 1 }, { kind = "kill", target = "slime", count = 5 } }, reward = { coins = 200, xp = 100, item = "loot|slimegel" }, prereq = "harbor_01", level = 5 },
+	{ id = "hero_02", giver = "sandy", name = "Slime Trouble", steps = { { kind = "kill", target = "slime", count = 10 }, { kind = "loot", target = "slimegel", count = 3 } }, reward = { coins = 300, xp = 150, item = "loot|herocrest" }, prereq = "hero_01" },
+	{ id = "hero_03", giver = "wwhisper", name = "Wolves at the Door", steps = { { kind = "sail", target = "2", count = 1 }, { kind = "kill", target = "wolf", count = 8 } }, reward = { coins = 450, xp = 220, unlock = "island2" }, prereq = "hero_02", level = 7 },
+	{ id = "hero_04", giver = "wwhisper", name = "Pelts for the Tailor", steps = { { kind = "loot", target = "wolfpelt", count = 5 }, { kind = "sell", count = 1 } }, reward = { coins = 500, xp = 260, item = "loot|woolcloak" }, prereq = "hero_03" },
+	{ id = "hero_05", giver = "frost", name = "Into the Cold", steps = { { kind = "sail", target = "3", count = 1 }, { kind = "kill", target = "yeti", count = 3 }, { kind = "loot", target = "frostcore", count = 1 } }, reward = { coins = 900, xp = 450, unlock = "island3" }, prereq = "hero_04", level = 10 },
+	{ id = "hero_06", giver = "ember", name = "The Bone Legion", steps = { { kind = "sail", target = "4", count = 1 }, { kind = "kill", target = "skeleton", count = 10 }, { kind = "find_treasure", count = 2 } }, reward = { coins = 1400, xp = 700, item = "loot|knightblade" }, prereq = "hero_05", level = 13 },
+	{ id = "hero_07", giver = "ember", name = "Slay the Dragon", steps = { { kind = "kill", target = "dragon", count = 1 }, { kind = "loot", target = "dragonscale", count = 1 } }, reward = { coins = 5000, xp = 2000, item = "loot|dragoncrown", unlock = "perk_heroaura" }, prereq = "hero_06", level = 16 },
+	{ id = "hero_08", giver = "misty", name = "Ghosts of the Mist", steps = { { kind = "sail", target = "10", count = 1 }, { kind = "kill", target = "wraith", count = 8 }, { kind = "loot", target = "ectoplasm", count = 3 } }, reward = { coins = 3000, xp = 1500, unlock = "island10" }, prereq = "hero_07", level = 25 },
+	{ id = "hero_09", giver = "fae", name = "The Enchanted Trial", steps = { { kind = "sail", target = "11", count = 1 }, { kind = "kill", target = "fae", count = 5 }, { kind = "loot", target = "faedust", count = 3 } }, reward = { coins = 8000, xp = 4000, item = "loot|faecrown", unlock = "island11" }, prereq = "hero_08", level = 35 },
+	{ id = "hero_10", giver = "willow", name = "Bloomly Champion", steps = { { kind = "talk", target = "willow", count = 1 }, { kind = "rebirth", count = 1 } }, reward = { coins = 20000, xp = 10000, item = "loot|championtrophy", unlock = "perk_champion" }, prereq = "hero_09", level = 40 },
 }
 
 Q.list = Quests
