@@ -166,7 +166,11 @@ end
 function World.build()
 	pcall(function()
 		workspace.StreamingEnabled = true -- map is ~3600 studs; clients stream only nearby content
-		workspace.StreamingTargetRadius = 800
+		workspace.StreamingTargetRadius = 1000
+		-- CRITICAL: without this, a player can walk/fall into an area whose ground has not streamed in
+		-- yet and drop through the world into the void. This pauses the character at the edge of the
+		-- loaded area instead, so there is never a "fall into the abyss".
+		workspace.StreamingIntegrityMode = Enum.StreamingIntegrityMode.PauseOutsideLoadedArea
 	end)
 
 	if root then
@@ -301,15 +305,18 @@ function World.build()
 		local platform = mkPart("Grass", Vector3.new(WorldLayout.SECTION_SIZE, 1, WorldLayout.SECTION_SIZE), CFrame.new(c.x, 0.5, c.z), C_GRASS, plot, Enum.Material.Grass)
 		plot.PrimaryPart = platform
 
-		-- low fence around the plot, with a GATEWAY in the front so you can walk in/out
+		-- low fence around the plot, with a wide GATEWAY (arch) in the front so you can walk in/out
 		local fh, ft = 4, 0.6
-		local gap = 44 -- width of the front gateway
+		local gap = 60 -- width of the front gateway
 		local segW = (WorldLayout.SECTION_SIZE - gap) / 2
 		local segX = (gap + segW) / 2 -- centre offset of each front fence segment
 		mkPart("FenceN1", Vector3.new(segW, fh, ft), CFrame.new(c.x - segX, fh / 2 + 1, c.z - half), C_FENCE, plot)
 		mkPart("FenceN2", Vector3.new(segW, fh, ft), CFrame.new(c.x + segX, fh / 2 + 1, c.z - half), C_FENCE, plot)
-		mkPart("GateL", Vector3.new(2, fh + 3, 2), CFrame.new(c.x - gap / 2, (fh + 3) / 2 + 1, c.z - half), Color3.fromRGB(150, 110, 70), plot)
-		mkPart("GateR", Vector3.new(2, fh + 3, 2), CFrame.new(c.x + gap / 2, (fh + 3) / 2 + 1, c.z - half), Color3.fromRGB(150, 110, 70), plot)
+		local gpH = 12 -- tall gate posts + a top beam so the gateway reads as an obvious opening
+		mkPart("GateL", Vector3.new(2.5, gpH, 2.5), CFrame.new(c.x - gap / 2, gpH / 2 + 1, c.z - half), Color3.fromRGB(150, 110, 70), plot)
+		mkPart("GateR", Vector3.new(2.5, gpH, 2.5), CFrame.new(c.x + gap / 2, gpH / 2 + 1, c.z - half), Color3.fromRGB(150, 110, 70), plot)
+		mkPart("GateTop", Vector3.new(gap + 6, 2.5, 2.5), CFrame.new(c.x, gpH + 1, c.z - half), Color3.fromRGB(150, 110, 70), plot)
+		mkBillboard(mkPart("GateSign", Vector3.new(0.5, 0.5, 0.5), CFrame.new(c.x, gpH + 4, c.z - half), C_FENCE, plot), 10, 1.6, 0).Text = "🚪 Gate (walk through here)"
 		mkPart("FenceS", Vector3.new(WorldLayout.SECTION_SIZE, fh, ft), CFrame.new(c.x, fh / 2 + 1, c.z + half), C_FENCE, plot)
 		mkPart("FenceW", Vector3.new(ft, fh, WorldLayout.SECTION_SIZE), CFrame.new(c.x - half, fh / 2 + 1, c.z), C_FENCE, plot)
 		mkPart("FenceE", Vector3.new(ft, fh, WorldLayout.SECTION_SIZE), CFrame.new(c.x + half, fh / 2 + 1, c.z), C_FENCE, plot)

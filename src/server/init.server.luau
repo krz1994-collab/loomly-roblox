@@ -863,6 +863,23 @@ task.spawn(function()
 	end
 end)
 
+-- ---- fall safety net (kid-safe: no falling into the void) ----------------------
+-- With StreamingEnabled a player can occasionally clip past the world edge, and kids love jumping
+-- fences. If anyone drops below the world, warp them straight back onto their own farm.
+task.spawn(function()
+	while true do
+		task.wait(1)
+		for _, player in Players:GetPlayers() do
+			local char = player.Character
+			local hrp = char and char:FindFirstChild("HumanoidRootPart")
+			if hrp and (hrp :: BasePart).Position.Y < -30 then
+				teleportToYard(player)
+				Remotes.Notify:FireClient(player, "🪂 Whoops! Warped you back to your farm.")
+			end
+		end
+	end
+end)
+
 -- ---- save cadence ---------------------------------------------------------------
 -- Persist every online player every SAVE_CADENCE_SECONDS. NEVER save per-action: at 50 players
 -- per-action writes would blow the DataStore request budget. Cadence + on-leave + on-shutdown is
