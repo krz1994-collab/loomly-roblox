@@ -209,10 +209,24 @@ function World.build()
 	local gridW = cols * WorldLayout.SECTION_SPACING
 	local gridD = rows * WorldLayout.SECTION_SPACING
 
-	-- ground = one big solid grey base under the WHOLE mainland (plaza + all 100 plots + the roads
-	-- between them). Generous margins + a thick slab so you can walk the entire map on foot and never
-	-- reach an edge or a gap. Green plots sit on top; the 60-stud gaps between them read as streets.
-	mkPart("Ground", Vector3.new(gridW + 2400, 2, gridD + 2400), CFrame.new(0, -1, (WorldLayout.GRID_START_Z + gridD) / 2 - 200), C_ROAD, rootF)
+	-- ground = a GRID OF TILES under the whole mainland (plaza + all 100 plots + the roads between).
+	-- IMPORTANT: a single Roblox part cannot exceed 2048 studs on an axis, so one giant ground part is
+	-- invalid and leaves a void. We tile it with ~1700-stud parts so there is solid ground everywhere and
+	-- you can walk the entire map on foot without ever falling into the abyss.
+	do
+		local tile = 1700
+		local x0, x1 = -2800, 2800
+		local z0, z1 = -500, WorldLayout.GRID_START_Z + gridD + 500
+		local nx = math.ceil((x1 - x0) / tile)
+		local nz = math.ceil((z1 - z0) / tile)
+		for ix = 0, nx - 1 do
+			for iz = 0, nz - 1 do
+				local cx = x0 + ix * tile + tile / 2
+				local cz = z0 + iz * tile + tile / 2
+				mkPart("GroundTile_" .. ix .. "_" .. iz, Vector3.new(tile, 2, tile), CFrame.new(cx, -1, cz), C_ROAD, rootF, Enum.Material.Ground)
+			end
+		end
+	end
 
 	-- central plaza (spawn + main shops)
 	mkPart("Plaza", Vector3.new(WorldLayout.PLAZA_RADIUS * 2, 1, WorldLayout.PLAZA_RADIUS * 2), CFrame.new(0, 0.5, WorldLayout.PLAZA_Z), C_PLAZA, rootF)

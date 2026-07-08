@@ -868,11 +868,11 @@ end)
 -- fences. If anyone drops below the world, warp them straight back onto their own farm.
 task.spawn(function()
 	while true do
-		task.wait(1)
+		task.wait(0.4)
 		for _, player in Players:GetPlayers() do
 			local char = player.Character
 			local hrp = char and char:FindFirstChild("HumanoidRootPart")
-			if hrp and (hrp :: BasePart).Position.Y < -30 then
+			if hrp and (hrp :: BasePart).Position.Y < -20 then
 				teleportToYard(player)
 				Remotes.Notify:FireClient(player, "🪂 Whoops! Warped you back to your farm.")
 			end
