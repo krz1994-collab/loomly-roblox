@@ -43,6 +43,7 @@ local Achievements = require("../src/shared/data/Achievements")
 local TradeRules = require("../src/shared/TradeRules")
 local CommandRules = require("../src/shared/CommandRules")
 local Commands = require("../src/shared/data/Commands")
+local LeaderRules = require("../src/shared/LeaderRules")
 local MapRules = require("../src/shared/MapRules")
 local Premium = require("../src/shared/data/Premium")
 local TutorialRules = require("../src/shared/TutorialRules")
@@ -249,7 +250,7 @@ local function tmpl(): any
 	for _ = 1, 6 do
 		table.insert(plots, { seedId = nil, readyAt = nil })
 	end
-	return { coins = 20, lifetimeEarned = 0, harvests = 0, xp = 0, codex = {}, inventory = {}, plots = plots, rebirths = 0, daily = { day = 0, streak = 0 }, quests = { done = {}, active = {} }, unlocks = {}, upgrades = {}, treasuresFound = {}, orchard = {}, animals = {}, kitchen = { recipeId = nil, doneAt = nil }, bees = { level = 0, lastCollect = 0 }, house = { tier = 0, lastRent = 0, decor = {} }, achievements = {}, museum = {}, tutorialsSeen = {}, pets = { owned = {}, equipped = nil }, challenges = { day = 0, prog = {}, claimed = {} } }
+	return { coins = 20, lifetimeEarned = 0, harvests = 0, xp = 0, codex = {}, inventory = {}, plots = plots, rebirths = 0, daily = { day = 0, streak = 0 }, quests = { done = {}, active = {} }, unlocks = {}, upgrades = {}, treasuresFound = {}, orchard = {}, animals = {}, kitchen = { recipeId = nil, doneAt = nil }, bees = { level = 0, lastCollect = 0 }, house = { tier = 0, lastRent = 0, decor = {} }, achievements = {}, museum = {}, tutorialsSeen = {}, pets = { owned = {}, equipped = nil }, challenges = { day = 0, prog = {}, claimed = {} }, dailyEarned = 0, weeklyEarned = 0, dayStamp = 0, weekStamp = 0 }
 end
 do
 	local st: any = {
@@ -275,6 +276,7 @@ do
 		tutorialsSeen = { welcome = true, plant = true },
 		pets = { owned = { chick = true, dragon = true }, equipped = "dragon" },
 		challenges = { day = 19600, prog = { harvest = 5 }, claimed = { c_sell = true } },
+		dailyEarned = 120, weeklyEarned = 800, dayStamp = 19600, weekStamp = 2800,
 		plots = {
 			{ seedId = "radish", readyAt = 1700000000 },
 			{ seedId = nil, readyAt = nil },
@@ -880,6 +882,23 @@ do
 		end
 	end
 	check("all 11 islands project inside the map", allInside)
+end
+
+-- ---- LeaderRules: daily/weekly earn tracking (leaderboards) ----
+do
+	local s: any = { dailyEarned = 0, weeklyEarned = 0, dayStamp = 100, weekStamp = 14 }
+	LeaderRules.addEarned(s, 50, 100, 14)
+	eq("daily credited", s.dailyEarned, 50)
+	eq("weekly credited", s.weeklyEarned, 50)
+	LeaderRules.addEarned(s, 30, 100, 14)
+	eq("daily accumulates", s.dailyEarned, 80)
+	-- next day: daily resets, weekly keeps
+	LeaderRules.addEarned(s, 10, 101, 14)
+	eq("new day resets daily", s.dailyEarned, 10)
+	eq("weekly survives new day", s.weeklyEarned, 90)
+	-- next week: weekly resets
+	LeaderRules.addEarned(s, 5, 101, 15)
+	eq("new week resets weekly", s.weeklyEarned, 5)
 end
 
 -- ---- CommandRules (block 16) ----

@@ -18,6 +18,7 @@ local Recipes = require(ReplicatedStorage.Bloomly.data.Recipes)
 local Bees = require(ReplicatedStorage.Bloomly.data.Bees)
 local Pets = require(ReplicatedStorage.Bloomly.data.Pets)
 local PetRules = require(ReplicatedStorage.Bloomly.PetRules)
+local LeaderRules = require(ReplicatedStorage.Bloomly.LeaderRules)
 local PlayerData = require(script.Parent.PlayerData)
 local Events = require(script.Parent.Events) -- active server-wide event multipliers (coins/mutation/grow/luck)
 
@@ -213,7 +214,9 @@ function Farm.sellAll(state: PlayerState): (boolean, number)
 	-- prestige coinMult + Market-Deal upgrade + "coins" event (Market Boom ×2) + equipped coins pet
 	gained = math.floor(gained * Rules.coinMult(state.rebirths or 0) * upEffect(state, "sellBonus") * Events.mult(now(), "coins") * petMult(state, "coins"))
 	state.coins += gained
-	state.lifetimeEarned += gained -- lifetimeEarned only ever grows; drives "earned" unlocks
+	state.lifetimeEarned += gained -- lifetimeEarned only ever grows; drives "earned" unlocks + all-time board
+	local t = now()
+	LeaderRules.addEarned(state, gained, math.floor(t / 86400), math.floor(t / 604800)) -- daily/weekly boards
 	table.clear(state.inventory)
 	return true, gained
 end

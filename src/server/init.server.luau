@@ -50,6 +50,7 @@ local Quest = require(script.Quest)
 local Events = require(script.Events)
 local Homestead = require(script.Homestead)
 local Trade = require(script.Trade)
+local Leaderboard = require(script.Leaderboard)
 
 -- Build the shared 3D world once, before anyone arrives.
 World.build()
@@ -156,6 +157,7 @@ local function pushState(player: Player)
 		return
 	end
 	checkAchievements(player, state) -- award milestones before snapshotting (reflects reward in this push)
+	Leaderboard.update(player.UserId, player.Name, state.dailyEarned or 0, state.weeklyEarned or 0, state.lifetimeEarned or 0)
 	local view: any = Farm.buildView(state, ownedPlotsFor(player))
 	local section = PlotClaim.sectionOf(player.UserId)
 	view.section = section -- so the client knows which section is its own
@@ -885,6 +887,77 @@ task.spawn(function()
 		end
 	end
 end)
+
+-- ---- leaderboards: 3 boards (all-time / week / today) + champion rewards ---------
+do
+	local function makeBoard(x: number, titleText: string): TextLabel
+		local part = Instance.new("Part")
+		part.Size = Vector3.new(2, 26, 18)
+		part.Anchored = true
+		part.Color = Color3.fromRGB(38, 42, 54)
+		part.Material = Enum.Material.SmoothPlastic
+		part.Position = Vector3.new(x, 13, WorldLayout.PLAZA_Z - 46)
+		part.Parent = workspace
+		local bb = Instance.new("BillboardGui")
+		bb.Size = UDim2.fromScale(16, 14)
+		bb.StudsOffset = Vector3.new(0, 1, 0)
+		bb.MaxDistance = 260
+		bb.Adornee = part
+		bb.Parent = part
+		local lbl = Instance.new("TextLabel")
+		lbl.Size = UDim2.fromScale(1, 1)
+		lbl.BackgroundTransparency = 1
+		lbl.Font = Enum.Font.GothamBold
+		lbl.TextColor3 = Color3.fromRGB(240, 242, 255)
+		lbl.TextStrokeTransparency = 0.5
+		lbl.TextSize = 16
+		lbl.TextYAlignment = Enum.TextYAlignment.Top
+		lbl.Text = titleText
+		lbl.Parent = bb
+		return lbl
+	end
+	local boards = {
+		{ metric = "all", title = "🏆 ALL-TIME TOP", label = makeBoard(-48, "🏆 ALL-TIME TOP") },
+		{ metric = "weekly", title = "📅 THIS WEEK", label = makeBoard(0, "📅 THIS WEEK") },
+		{ metric = "daily", title = "☀️ TODAY", label = makeBoard(48, "☀️ TODAY") },
+	}
+	task.spawn(function()
+		while true do
+			for _, b in boards do
+				local top = Leaderboard.top(b.metric, 10)
+				local lines = { b.title, "" }
+				for i, e in top do
+					table.insert(lines, i .. ". " .. e.name .. "  " .. e.value .. "c")
+				end
+				if #top == 0 then
+					table.insert(lines, "(be the first!)")
+				end
+				b.label.Text = table.concat(lines, "\n")
+			end
+			task.wait(15)
+		end
+	end)
+	-- champion bonus: the current #1 of the daily + weekly boards gets a periodic coin reward (a reason
+	-- to fight for the top spot). Modest so it doesn't runaway-snowball.
+	task.spawn(function()
+		while true do
+			task.wait(300)
+			local function reward(metric: string, amount: number, emoji: string, label: string)
+				local id = Leaderboard.championId(metric)
+				local p = if id then Players:GetPlayerByUserId(id) else nil
+				local st = if p then PlayerData.get(p) else nil
+				if p and st then
+					st.coins += amount
+					st.lifetimeEarned += amount
+					Remotes.Notify:FireClient(p, emoji .. " You're #1 " .. label .. "! Champion bonus +" .. amount .. "c")
+					pushState(p)
+				end
+			end
+			reward("daily", 250, "☀️", "today")
+			reward("weekly", 500, "📅", "this week")
+		end
+	end)
+end
 
 -- ---- save cadence ---------------------------------------------------------------
 -- Persist every online player every SAVE_CADENCE_SECONDS. NEVER save per-action: at 50 players

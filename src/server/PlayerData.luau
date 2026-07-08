@@ -71,6 +71,10 @@ export type PlayerState = {
 	tutorialsSeen: { [string]: boolean }, -- tutorials already shown (block 2)
 	pets: { owned: { [string]: boolean }, equipped: string? }, -- adopted pets (content)
 	challenges: { day: number, prog: { [string]: number }, claimed: { [string]: boolean } }, -- daily challenges (content)
+	dailyEarned: number,
+	weeklyEarned: number,
+	dayStamp: number,
+	weekStamp: number,
 }
 
 local PlayerData = {}
@@ -108,6 +112,10 @@ local function makeDefault(): PlayerState
 		tutorialsSeen = {},
 		pets = { owned = {}, equipped = nil },
 		challenges = { day = 0, prog = {}, claimed = {} },
+		dailyEarned = 0,
+		weeklyEarned = 0,
+		dayStamp = 0,
+		weekStamp = 0,
 	}
 end
 

@@ -41,6 +41,10 @@ export type PlayerState = {
 	tutorialsSeen: { [string]: boolean }, -- tutorials already shown (block 2)
 	pets: { owned: { [string]: boolean }, equipped: string? }, -- adopted pets + the active one (content)
 	challenges: { day: number, prog: { [string]: number }, claimed: { [string]: boolean } }, -- daily challenges (content)
+	dailyEarned: number, -- coins earned today (leaderboard; resets daily)
+	weeklyEarned: number, -- coins earned this week (leaderboard; resets weekly)
+	dayStamp: number, -- floor(os.time()/86400) of the current daily window
+	weekStamp: number, -- floor(os.time()/604800) of the current weekly window
 }
 
 local SaveSchema = {}
@@ -97,6 +101,10 @@ function SaveSchema.serialize(state: PlayerState): any
 		tutorialsSeen = deepCopy(state.tutorialsSeen),
 		pets = deepCopy(state.pets),
 		challenges = deepCopy(state.challenges),
+		dailyEarned = state.dailyEarned,
+		weeklyEarned = state.weeklyEarned,
+		dayStamp = state.dayStamp,
+		weekStamp = state.weekStamp,
 	}
 end
 
@@ -281,6 +289,12 @@ function SaveSchema.validate(candidate: any, template: PlayerState): PlayerState
 			end
 		end
 	end
+
+	-- leaderboard earn counters
+	out.dailyEarned = isNonNegNumber(t.dailyEarned) and t.dailyEarned or 0
+	out.weeklyEarned = isNonNegNumber(t.weeklyEarned) and t.weeklyEarned or 0
+	out.dayStamp = isNonNegNumber(t.dayStamp) and math.floor(t.dayStamp) or 0
+	out.weekStamp = isNonNegNumber(t.weekStamp) and math.floor(t.weekStamp) or 0
 
 	-- codex: map of string->true
 	out.codex = {}
