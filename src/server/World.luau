@@ -166,11 +166,11 @@ end
 function World.build()
 	pcall(function()
 		workspace.StreamingEnabled = true -- map is ~3600 studs; clients stream only nearby content
-		workspace.StreamingTargetRadius = 1000
-		-- CRITICAL: without this, a player can walk/fall into an area whose ground has not streamed in
-		-- yet and drop through the world into the void. This pauses the character at the edge of the
-		-- loaded area instead, so there is never a "fall into the abyss".
-		workspace.StreamingIntegrityMode = Enum.StreamingIntegrityMode.PauseOutsideLoadedArea
+		workspace.StreamingTargetRadius = 1200 -- stream a bit more so the plot + path around it are loaded
+		-- Do NOT force PauseOutsideLoadedArea: on this big map it can freeze the character when it lands
+		-- on a far plot before content streams (feels like "can't get onto my plot"). We instead let
+		-- movement flow freely and catch any rare void fall with the safety net in init.server.
+		workspace.StreamingIntegrityMode = Enum.StreamingIntegrityMode.Disabled
 	end)
 
 	if root then
@@ -192,8 +192,10 @@ function World.build()
 	local gridW = cols * WorldLayout.SECTION_SPACING
 	local gridD = rows * WorldLayout.SECTION_SPACING
 
-	-- ground = grey road/path base under everything (green plots sit on top -> gaps look like streets)
-	mkPart("Ground", Vector3.new(gridW + 600, 2, gridD + 1000), CFrame.new(0, -1, (WorldLayout.GRID_START_Z + gridD) / 2 - 200), C_ROAD, rootF)
+	-- ground = one big solid grey base under the WHOLE mainland (plaza + all 100 plots + the roads
+	-- between them). Generous margins + a thick slab so you can walk the entire map on foot and never
+	-- reach an edge or a gap. Green plots sit on top; the 60-stud gaps between them read as streets.
+	mkPart("Ground", Vector3.new(gridW + 2400, 2, gridD + 2400), CFrame.new(0, -1, (WorldLayout.GRID_START_Z + gridD) / 2 - 200), C_ROAD, rootF)
 
 	-- central plaza (spawn + main shops)
 	mkPart("Plaza", Vector3.new(WorldLayout.PLAZA_RADIUS * 2, 1, WorldLayout.PLAZA_RADIUS * 2), CFrame.new(0, 0.5, WorldLayout.PLAZA_Z), C_PLAZA, rootF)
