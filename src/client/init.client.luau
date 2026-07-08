@@ -15,6 +15,34 @@ local MapData = require(ReplicatedStorage.Bloomly.data.MapData)
 local MapRules = require(ReplicatedStorage.Bloomly.MapRules)
 local WorldLayout = require(ReplicatedStorage.Bloomly.data.WorldLayout)
 local Tutorials = require(ReplicatedStorage.Bloomly.data.Tutorials)
+local Sounds = require(ReplicatedStorage.Bloomly.data.Sounds)
+
+-- ---- sound: one cached Sound per key, played on demand. Empty ids are silent (safe). ----
+local SoundService = game:GetService("SoundService")
+local soundCache: { [string]: Sound } = {}
+local function playSound(key: string)
+	local def = Sounds.map[key]
+	if not def or def.id == "" then
+		return
+	end
+	local s = soundCache[key]
+	if not s then
+		s = Instance.new("Sound")
+		s.SoundId = def.id
+		s.Volume = def.volume
+		s.Looped = def.looped or false
+		s.Parent = SoundService
+		soundCache[key] = s
+	end
+	if def.looped then
+		if not s.IsPlaying then
+			s:Play()
+		end
+	else
+		s:Play()
+	end
+end
+playSound("music") -- background loop if an id is configured
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -204,6 +232,14 @@ toastCorner.CornerRadius = UDim.new(0, 8)
 toastCorner.Parent = toast
 local toastToken = 0
 Remotes.Notify.OnClientEvent:Connect(function(msg: string)
+	-- contextual sound cue (silent until you configure the ids in data/Sounds.luau)
+	if string.find(msg, "EVENT") then
+		playSound("event")
+	elseif string.find(msg, "Treasure") or string.find(msg, "treasure") then
+		playSound("treasure")
+	elseif string.find(msg, "Achievement") then
+		playSound("reward")
+	end
 	toast.Text = msg
 	toast.BackgroundTransparency = 0.2
 	toast.TextStrokeTransparency = 0.3
@@ -330,6 +366,7 @@ local function render(view: any)
 		local dc = view.coins - (prev.coins :: number)
 		if dc > 0 then
 			floatPopup("+" .. dc .. " 🪙", Color3.fromRGB(255, 220, 90))
+			playSound("reward")
 		end
 		local dx = view.xp - (prev.xp :: number)
 		if dx > 0 then
@@ -337,6 +374,11 @@ local function render(view: any)
 		end
 		if view.level > (prev.level :: number) then
 			levelUpFlash(view.level)
+			if Sounds.map.levelup.id ~= "" then
+				playSound("levelup")
+			else
+				playSound("reward")
+			end
 		end
 	end
 	prev.coins, prev.xp, prev.level = view.coins, view.xp, view.level
