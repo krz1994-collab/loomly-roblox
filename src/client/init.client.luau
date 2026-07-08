@@ -156,7 +156,7 @@ hint.TextColor3 = Color3.fromRGB(255, 255, 255)
 hint.TextStrokeTransparency = 0.5
 hint.Font = Enum.Font.GothamMedium
 hint.TextSize = 15
-hint.Text = "Find your 🌱 farm below · press E on a plot to plant / harvest · sell at 🧺 Market"
+hint.Text = "Find your 🌱 farm · press E on a plot to plant/harvest · sell at 🧺 Market · hold Shift to sprint"
 hint.Parent = gui
 
 -- ---- event banner (top-center, under the hint) ----
@@ -803,6 +803,41 @@ end)
 if ok and view then
 	render(view)
 end
+
+-- ================= SPRINT (hold Shift) =================
+local UIS = game:GetService("UserInputService")
+local SPRINT_MULT = 1.7
+local sprinting = false
+local baseWS = 16
+local function humanoid(): Humanoid?
+	local c = player.Character
+	return c and c:FindFirstChildOfClass("Humanoid")
+end
+UIS.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+	if gameProcessed then
+		return
+	end
+	if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.RightShift then
+		local hum = humanoid()
+		if hum and not sprinting then
+			sprinting = true
+			baseWS = hum.WalkSpeed -- remember the current speed (vehicle/upgrade already applied by server)
+			hum.WalkSpeed = baseWS * SPRINT_MULT
+		end
+	end
+end)
+UIS.InputEnded:Connect(function(input: InputObject)
+	if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.RightShift then
+		local hum = humanoid()
+		if hum and sprinting then
+			sprinting = false
+			hum.WalkSpeed = baseWS
+		end
+	end
+end)
+player.CharacterAdded:Connect(function()
+	sprinting = false -- reset on respawn
+end)
 
 -- ================= AMBIENT LIFE (polish) =================
 -- All local to this client (cheap, no server load): soft clouds drifting across the sky, butterflies
