@@ -59,6 +59,11 @@ World.build()
 -- The seed each player wants the next Plant prompt to use (transient preference; never saved).
 local selectedSeed: { [number]: string } = {}
 
+-- Playtime rewards (retention): escalating coins for time spent online this session.
+local PLAYTIME = { { 2, 100 }, { 5, 200 }, { 10, 350 }, { 15, 500 }, { 20, 750 }, { 30, 1200 }, { 45, 2000 }, { 60, 3500 } }
+local sessionStart: { [number]: number } = {} -- userId -> os.time() at join
+local ptClaimed: { [number]: number } = {} -- userId -> highest playtime milestone claimed this session
+
 -- Owned plots = BASE_PLOTS + the "plots" upgrade level, capped at the built pad count (PLOT_COUNT).
 local function ownedPlotsFor(player: Player): number
 	local state = PlayerData.get(player)
@@ -390,6 +395,8 @@ local function onPlayerAdded(player: Player)
 	PlotClaim.claim(player) -- assign a free 300x300 plot for this session
 	setupLeaderstats(player, state) -- Coins + Level on the player list
 	selectedSeed[player.UserId] = "radish" -- sensible default so the first Plant prompt just works
+	sessionStart[player.UserId] = os.time() -- start the playtime-reward clock
+	ptClaimed[player.UserId] = 0
 	pushState(player) -- renders the plot's crops + fills the client HUD
 	task.delay(3, function()
 		if PlayerData.get(player) then
@@ -425,6 +432,8 @@ Players.PlayerRemoving:Connect(function(player)
 		World.clearSection(section) -- reset it to "free" in the world
 	end
 	selectedSeed[player.UserId] = nil
+	sessionStart[player.UserId] = nil
+	ptClaimed[player.UserId] = nil
 	PlayerData.unload(player) -- final save + release lock + free memory
 end)
 
@@ -939,6 +948,33 @@ task.spawn(function()
 			if hrp and (hrp :: BasePart).Position.Y < -20 then
 				teleportToYard(player)
 				Remotes.Notify:FireClient(player, "🪂 Whoops! Warped you back to your farm.")
+			end
+		end
+	end
+end)
+
+-- ---- playtime rewards (retention): escalating coins for staying online -----------
+task.spawn(function()
+	while true do
+		task.wait(20)
+		for _, player in Players:GetPlayers() do
+			local start = sessionStart[player.UserId]
+			local state = PlayerData.get(player)
+			if start and state then
+				local mins = (os.time() - start) / 60
+				local claimed = ptClaimed[player.UserId] or 0
+				for i = claimed + 1, #PLAYTIME do
+					if mins >= PLAYTIME[i][1] then
+						local r = PLAYTIME[i][2]
+						state.coins += r
+						state.lifetimeEarned += r
+						ptClaimed[player.UserId] = i
+						Remotes.Notify:FireClient(player, "⏱️ Playtime reward (" .. PLAYTIME[i][1] .. " min online): +" .. r .. "c!")
+						pushState(player)
+					else
+						break
+					end
+				end
 			end
 		end
 	end
