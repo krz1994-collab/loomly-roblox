@@ -20,6 +20,7 @@ local Rules = require(ReplicatedStorage.Bloomly.Rules)
 local WorldLayout = require(ReplicatedStorage.Bloomly.data.WorldLayout)
 local Catalog = require(ReplicatedStorage.Bloomly.data.Catalog)
 local Plants = require(ReplicatedStorage.Bloomly.data.Plants)
+local Monsters = require(ReplicatedStorage.Bloomly.data.Monsters)
 local UpgradeRules = require(ReplicatedStorage.Bloomly.UpgradeRules)
 local Upgrades = require(ReplicatedStorage.Bloomly.data.Upgrades)
 local GatherRules = require(ReplicatedStorage.Bloomly.GatherRules)
@@ -564,6 +565,27 @@ Remotes.BuySeed.OnServerEvent:Connect(function(player: Player, seedId: any, qty:
 	pushState(player)
 end)
 
+-- ---- combat helpers (RPG block 3) ----
+local function setMonsterVisible(model: Model, visible: boolean)
+	for _, p in model:GetDescendants() do
+		if p:IsA("BasePart") then
+			(p :: BasePart).Transparency = visible and 0 or 1
+		elseif p:IsA("ProximityPrompt") then
+			(p :: ProximityPrompt).Enabled = visible
+		elseif p:IsA("BillboardGui") then
+			(p :: BillboardGui).Enabled = visible
+		end
+	end
+end
+local function respawnMonster(model: Model, mdef: any)
+	model:SetAttribute("hp", mdef.hp)
+	local label = model:FindFirstChild("MonHp", true)
+	if label and label:IsA("TextLabel") then
+		label.Text = mdef.emoji .. " " .. mdef.name .. "\n❤️ " .. mdef.hp .. "/" .. mdef.hp
+	end
+	setMonsterVisible(model, true)
+end
+
 -- ---- ProximityPrompt interactions (the 3D world's intents) ----------------------
 -- Walking up to a plot pad or the market and pressing the prompt fires this ON THE SERVER with the
 -- triggering player. We read the prompt's attributes, re-check the actor OWNS the targeted section,
@@ -739,6 +761,53 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 			else
 				Remotes.Notify:FireClient(player, "You already found this treasure. Look for others! 🗺️")
 			end
+		end
+	elseif kind == "attack" then
+		-- COMBAT: press E to hit the monster. Shared hp (co-op), server-authoritative. On death: xp +
+		-- coins + a chance at loot, report kill/loot quests, then the monster respawns after a delay.
+		local model = prompt.Parent and prompt.Parent.Parent
+		if not (model and model:IsA("Model")) then
+			return
+		end
+		local monId = model:GetAttribute("monsterId")
+		local hp = model:GetAttribute("hp")
+		local maxHp = model:GetAttribute("maxHp")
+		if type(monId) ~= "string" or type(hp) ~= "number" or hp <= 0 then
+			return
+		end
+		local mdef = Monsters.get(monId)
+		if not mdef then
+			return
+		end
+		local dmg = 20 + Rules.levelForXp(state.xp) * 2 -- you hit harder as you level
+		hp = math.max(0, hp - dmg)
+		model:SetAttribute("hp", hp)
+		local label = model:FindFirstChild("MonHp", true)
+		if hp > 0 then
+			if label and label:IsA("TextLabel") then
+				label.Text = mdef.emoji .. " " .. mdef.name .. "\n❤️ " .. hp .. "/" .. tostring(maxHp)
+			end
+		else
+			state.xp += mdef.xp
+			state.coins += mdef.coins
+			state.lifetimeEarned += mdef.coins
+			Quest.report(player, "kill", monId, 1)
+			local msg = "⚔️ Defeated " .. mdef.name .. "! +" .. mdef.xp .. " xp +" .. mdef.coins .. "c"
+			if mdef.loot and math.random() < mdef.loot.chance then
+				local key = "loot|" .. mdef.loot.id
+				state.inventory[key] = (state.inventory[key] or 0) + 1
+				msg = msg .. "  + " .. mdef.loot.emoji .. " " .. mdef.loot.id .. "!"
+				Quest.report(player, "loot", mdef.loot.id, 1)
+			end
+			Remotes.Notify:FireClient(player, msg)
+			setMonsterVisible(model, false)
+			local m = model
+			task.delay(25, function()
+				if m and m.Parent then
+					respawnMonster(m, mdef)
+				end
+			end)
+			pushState(player)
 		end
 	elseif kind == "premium" then
 		-- Show the (cosmetic/convenience-only) Robux catalogue. Real purchase prompts wire in once the

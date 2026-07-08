@@ -16,6 +16,7 @@ local Trees = require(ReplicatedStorage.Bloomly.data.Trees)
 local Animals = require(ReplicatedStorage.Bloomly.data.Animals)
 local Recipes = require(ReplicatedStorage.Bloomly.data.Recipes)
 local Bees = require(ReplicatedStorage.Bloomly.data.Bees)
+local Monsters = require(ReplicatedStorage.Bloomly.data.Monsters)
 local Pets = require(ReplicatedStorage.Bloomly.data.Pets)
 local PetRules = require(ReplicatedStorage.Bloomly.PetRules)
 local LeaderRules = require(ReplicatedStorage.Bloomly.LeaderRules)
@@ -34,6 +35,7 @@ local GATHER_LISTS: { [string]: { any } } = {
 	product = Animals.Products, -- pen animals (block 8): {id,emoji,sell}
 	dish = Recipes.list, -- cooked dishes (block 9): rows carry id/emoji/sell
 	honey = { { id = Bees.HONEY.id, emoji = Bees.HONEY.emoji, sell = Bees.HONEY.sell } }, -- beehive (block 9)
+	loot = Monsters.Loot, -- monster drops (combat): {id,emoji,sell}
 }
 local function itemSell(key: string): (number, string)
 	local sep = string.find(key, Config.INV_SEP, 1, true)

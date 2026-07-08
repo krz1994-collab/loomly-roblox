@@ -9,6 +9,7 @@ local Config = require(ReplicatedStorage.Bloomly.data.Config)
 local WorldLayout = require(ReplicatedStorage.Bloomly.data.WorldLayout)
 local Catalog = require(ReplicatedStorage.Bloomly.data.Catalog)
 local Npcs = require(ReplicatedStorage.Bloomly.data.Npcs)
+local Monsters = require(ReplicatedStorage.Bloomly.data.Monsters)
 local Upgrades = require(ReplicatedStorage.Bloomly.data.Upgrades)
 local TreasureRules = require(ReplicatedStorage.Bloomly.TreasureRules)
 
@@ -124,6 +125,31 @@ local function mkCharacter(id: string, x: number, z: number, seed: number): (Mod
 	head.Material = Enum.Material.SmoothPlastic
 	model.PrimaryPart = torso
 	return model, torso
+end
+
+-- A monster: a coloured body with eyes, an hp billboard, and an "attack" prompt. hp lives on a model
+-- attribute; the combat handler in init.server reads/writes it + respawns. Returns the model.
+local function mkMonster(mdef: any, x: number, z: number, idx: number): Model
+	local model = Instance.new("Model")
+	model.Name = "Mon_" .. mdef.id .. "_" .. idx
+	model.Parent = rootF
+	local col = Color3.fromRGB(mdef.color[1], mdef.color[2], mdef.color[3])
+	local body = mkPart("MonBody", Vector3.new(6, 7, 5), CFrame.new(x, 4, z), col, model, Enum.Material.SmoothPlastic)
+	local eyeL = mkPart("EyeL", Vector3.new(1.1, 1.1, 1.1), CFrame.new(x - 1.3, 6, z - 2.4), Color3.fromRGB(255, 255, 255), model, Enum.Material.Neon)
+	eyeL.Shape = Enum.PartType.Ball
+	local eyeR = mkPart("EyeR", Vector3.new(1.1, 1.1, 1.1), CFrame.new(x + 1.3, 6, z - 2.4), Color3.fromRGB(255, 255, 255), model, Enum.Material.Neon)
+	eyeR.Shape = Enum.PartType.Ball
+	model.PrimaryPart = body
+	model:SetAttribute("monsterId", mdef.id)
+	model:SetAttribute("hp", mdef.hp)
+	model:SetAttribute("maxHp", mdef.hp)
+	local pr = mkPrompt(body, "Attack " .. mdef.name, "attack")
+	pr.HoldDuration = 0
+	pr.MaxActivationDistance = 12
+	local lbl = mkBillboard(body, 10, 2, 6)
+	lbl.Name = "MonHp"
+	lbl.Text = mdef.emoji .. " " .. mdef.name .. "\n❤️ " .. mdef.hp .. "/" .. mdef.hp
+	return model
 end
 
 local function mkLamppost(x: number, z: number, parent: Instance)
@@ -636,6 +662,17 @@ function World.build()
 	for i = 1, WorldLayout.ISLAND_COUNT do
 		buildIsland(i, WorldLayout.islandCenter(i), rootF)
 	end
+
+	-- MONSTERS: spawn a few of each creature on its island (combat, RPG block 3).
+	for _, mdef in Monsters.list do
+		local c = WorldLayout.islandCenter(mdef.island)
+		for k = 1, 3 do
+			local a = (k / 3) * math.pi * 2 + mdef.island
+			local r = WorldLayout.ISLAND_SIZE * 0.28
+			mkMonster(mdef, c.x + math.cos(a) * r, c.z + math.sin(a) * r, k)
+		end
+	end
+
 	-- island-specific gathering nodes
 	local islandGather = {
 		{ 4, "Mine", "mine", "ore", "⛏️ Lava Rocks" }, { 3, "Mine", "mine", "ore", "❄️ Ice Crystals" },
