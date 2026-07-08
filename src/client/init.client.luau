@@ -761,3 +761,81 @@ end)
 if ok and view then
 	render(view)
 end
+
+-- ================= AMBIENT LIFE (polish) =================
+-- All local to this client (cheap, no server load): soft clouds drifting across the sky, butterflies
+-- that flit around wherever you are, and the occasional shooting star at night.
+local Lighting = game:GetService("Lighting")
+
+local function decoPart(size: Vector3, color: Color3, material: Enum.Material, transparency: number): Part
+	local p = Instance.new("Part")
+	p.Size = size
+	p.Color = color
+	p.Material = material
+	p.Transparency = transparency
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.Parent = workspace
+	return p
+end
+
+local clouds = {}
+for _ = 1, 8 do
+	local c = decoPart(Vector3.new(math.random(120, 220), 8, math.random(80, 140)), Color3.fromRGB(245, 248, 255), Enum.Material.SmoothPlastic, 0.35)
+	c.Position = Vector3.new(math.random(-3000, 3000), math.random(190, 270), math.random(-400, 4000))
+	table.insert(clouds, { part = c, speed = math.random(5, 14) })
+end
+
+local flyers = {}
+for _ = 1, 6 do
+	local b = decoPart(Vector3.new(1.4, 0.4, 1.4), Color3.fromHSV(math.random(), 0.6, 1), Enum.Material.Neon, 0.1)
+	table.insert(flyers, { part = b, phase = math.random() * 6.28, r = math.random(8, 22), h = math.random(3, 9), spd = 0.5 + math.random() })
+end
+
+RunService.Heartbeat:Connect(function(dt)
+	for _, cl in clouds do
+		local p = cl.part.Position
+		local nx = p.X + cl.speed * dt
+		if nx > 3300 then
+			nx = -3300
+		end
+		cl.part.Position = Vector3.new(nx, p.Y, p.Z)
+	end
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart")
+	if hrp then
+		local base = (hrp :: BasePart).Position
+		local t = os.clock()
+		for _, f in flyers do
+			local a = t * f.spd + f.phase
+			f.part.Position = base + Vector3.new(math.cos(a) * f.r, f.h + math.sin(a * 2) * 2, math.sin(a) * f.r)
+		end
+	end
+end)
+
+-- shooting stars at night
+task.spawn(function()
+	while true do
+		task.wait(math.random(5, 12))
+		local h = Lighting.ClockTime
+		if h < 6 or h > 19 then
+			local char = player.Character
+			local hrp = char and char:FindFirstChild("HumanoidRootPart")
+			local base = if hrp then (hrp :: BasePart).Position else Vector3.new(0, 0, 1000)
+			local start = base + Vector3.new(math.random(-400, 400), 260, math.random(-200, 600))
+			local dir = Vector3.new(math.random(-300, 300), -90, math.random(-200, 200))
+			local star = decoPart(Vector3.new(3, 3, 3), Color3.fromRGB(255, 255, 220), Enum.Material.Neon, 0)
+			star.Shape = Enum.PartType.Ball
+			task.spawn(function()
+				for i = 0, 30 do
+					star.Position = start + dir * (i / 30)
+					star.Transparency = i / 30
+					task.wait(0.03)
+				end
+				star:Destroy()
+			end)
+		end
+	end
+end)
