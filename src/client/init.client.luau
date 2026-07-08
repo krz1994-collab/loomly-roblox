@@ -152,22 +152,28 @@ end)
 
 -- ---- hint ----
 local hint = Instance.new("TextLabel")
-hint.Size = UDim2.new(0, 560, 0, 22)
-hint.Position = UDim2.new(0.5, -280, 0, 12)
+hint.AnchorPoint = Vector2.new(0.5, 0)
+hint.Size = UDim2.new(1, -20, 0, 34)
+hint.Position = UDim2.new(0.5, 0, 0, 10)
+hint.TextWrapped = true
+do local sc = Instance.new("UISizeConstraint"); sc.MaxSize = Vector2.new(680, 40); sc.Parent = hint end
 hint.BackgroundTransparency = 1
 hint.TextColor3 = Color3.fromRGB(255, 255, 255)
 hint.TextStrokeTransparency = 0.5
 hint.Font = Enum.Font.GothamMedium
 hint.TextSize = 15
-hint.Text = "Find your 🌱 farm · press E on a plot to plant/harvest · sell at 🧺 Market · hold Shift to sprint"
+hint.Text = "Find your 🌱 farm · tap/press a plot to plant + harvest · sell at 🧺 Market · use 🏃 Sprint to run"
 hint.Parent = gui
 
 -- ---- event banner (top-center, under the hint) ----
 -- Shows the ACTIVE server-wide event (from §D's 50 EPIC events) with a live countdown. Hidden when
 -- no event is running. Pulses so a kid can't miss that something big is happening.
 local eventBanner = Instance.new("TextLabel")
-eventBanner.Size = UDim2.new(0, 620, 0, 40)
-eventBanner.Position = UDim2.new(0.5, -310, 0, 40)
+eventBanner.AnchorPoint = Vector2.new(0.5, 0)
+eventBanner.Size = UDim2.new(1, -20, 0, 40)
+eventBanner.Position = UDim2.new(0.5, 0, 0, 50)
+eventBanner.TextWrapped = true
+do local sc = Instance.new("UISizeConstraint"); sc.MaxSize = Vector2.new(640, 44); sc.Parent = eventBanner end
 eventBanner.BackgroundColor3 = Color3.fromRGB(80, 30, 90)
 eventBanner.BackgroundTransparency = 1
 eventBanner.BorderSizePixel = 0
@@ -220,8 +226,11 @@ qpPad.Parent = questPanel
 
 -- ---- notify toast (bottom-center, fades) ----
 local toast = Instance.new("TextLabel")
-toast.Size = UDim2.new(0, 520, 0, 34)
-toast.Position = UDim2.new(0.5, -260, 1, -120)
+toast.AnchorPoint = Vector2.new(0.5, 1)
+toast.Size = UDim2.new(1, -20, 0, 34)
+toast.Position = UDim2.new(0.5, 0, 1, -120)
+toast.TextWrapped = true
+do local sc = Instance.new("UISizeConstraint"); sc.MaxSize = Vector2.new(560, 40); sc.Parent = toast end
 toast.BackgroundColor3 = Color3.fromRGB(40, 60, 30)
 toast.BackgroundTransparency = 1
 toast.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -257,10 +266,13 @@ Remotes.Notify.OnClientEvent:Connect(function(msg: string)
 	end)
 end)
 
--- ---- bottom seed bar (horizontal scroll: the crop roster is large now) ----
+-- ---- bottom seed hotbar (horizontal scroll). Responsive: fits the screen width, and on TOUCH devices
+-- it sits ABOVE the movement thumbstick + jump/sprint buttons so it never overlaps the controls. ----
+local isTouchDevice = game:GetService("UserInputService").TouchEnabled
 local seedBar = Instance.new("ScrollingFrame")
-seedBar.Size = UDim2.new(0, 900, 0, 66)
-seedBar.Position = UDim2.new(0.5, -450, 1, -80)
+seedBar.AnchorPoint = Vector2.new(0.5, 1)
+seedBar.Size = UDim2.new(1, -20, 0, 66)
+seedBar.Position = if isTouchDevice then UDim2.new(0.5, 0, 1, -180) else UDim2.new(0.5, 0, 1, -12)
 seedBar.BackgroundTransparency = 1
 seedBar.BorderSizePixel = 0
 seedBar.ScrollingDirection = Enum.ScrollingDirection.X
@@ -268,6 +280,7 @@ seedBar.ScrollBarThickness = 6
 seedBar.CanvasSize = UDim2.new(0, 0, 0, 0)
 seedBar.AutomaticCanvasSize = Enum.AutomaticSize.X
 seedBar.Parent = gui
+do local sc = Instance.new("UISizeConstraint"); sc.MaxSize = Vector2.new(760, 66); sc.Parent = seedBar end -- cap on desktop
 local barLayout = Instance.new("UIListLayout")
 barLayout.FillDirection = Enum.FillDirection.Horizontal
 barLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
@@ -1209,9 +1222,13 @@ afterRender = function()
 end
 
 -- ================= DIALOGUE (RPG block 1) =================
+-- MOBILE-FRIENDLY dialogue box: responsive width (full-width on phones, capped on desktop), anchored to
+-- the bottom, and AUTO-HEIGHT so the full text + every choice button always fit (nothing gets cut off).
 local dlg = Instance.new("Frame")
-dlg.Size = UDim2.new(0, 720, 0, 210)
-dlg.Position = UDim2.new(0.5, -360, 1, -320)
+dlg.AnchorPoint = Vector2.new(0.5, 1)
+dlg.Position = UDim2.new(0.5, 0, 1, -12)
+dlg.Size = UDim2.new(1, -20, 0, 0) -- width = screen minus margin; height grows to fit content
+dlg.AutomaticSize = Enum.AutomaticSize.Y
 dlg.BackgroundColor3 = Color3.fromRGB(22, 24, 34)
 dlg.BackgroundTransparency = 0.05
 dlg.BorderSizePixel = 0
@@ -1219,9 +1236,17 @@ dlg.Visible = false
 dlg.ZIndex = 40
 dlg.Parent = gui
 do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 12); c.Parent = dlg end
+do local sc = Instance.new("UISizeConstraint"); sc.MaxSize = Vector2.new(680, 100000); sc.Parent = dlg end -- cap on big screens
+do
+	local p = Instance.new("UIPadding")
+	p.PaddingTop = UDim.new(0, 12); p.PaddingBottom = UDim.new(0, 12)
+	p.PaddingLeft = UDim.new(0, 14); p.PaddingRight = UDim.new(0, 14)
+	p.Parent = dlg
+end
+do local l = Instance.new("UIListLayout"); l.Padding = UDim.new(0, 8); l.SortOrder = Enum.SortOrder.LayoutOrder; l.Parent = dlg end
 local dlgName = Instance.new("TextLabel")
-dlgName.Size = UDim2.new(1, -16, 0, 26)
-dlgName.Position = UDim2.new(0, 12, 0, 6)
+dlgName.LayoutOrder = 1
+dlgName.Size = UDim2.new(1, 0, 0, 24)
 dlgName.BackgroundTransparency = 1
 dlgName.TextXAlignment = Enum.TextXAlignment.Left
 dlgName.TextColor3 = Color3.fromRGB(255, 235, 150)
@@ -1230,24 +1255,26 @@ dlgName.TextSize = 18
 dlgName.ZIndex = 41
 dlgName.Parent = dlg
 local dlgText = Instance.new("TextLabel")
-dlgText.Size = UDim2.new(1, -24, 0, 60)
-dlgText.Position = UDim2.new(0, 12, 0, 32)
+dlgText.LayoutOrder = 2
+dlgText.Size = UDim2.new(1, 0, 0, 0)
+dlgText.AutomaticSize = Enum.AutomaticSize.Y -- grows with the (multi-line) text so it's never clipped
 dlgText.BackgroundTransparency = 1
 dlgText.TextXAlignment = Enum.TextXAlignment.Left
 dlgText.TextYAlignment = Enum.TextYAlignment.Top
 dlgText.TextWrapped = true
 dlgText.TextColor3 = Color3.fromRGB(235, 238, 245)
 dlgText.Font = Enum.Font.Gotham
-dlgText.TextSize = 15
+dlgText.TextSize = 16
 dlgText.ZIndex = 41
 dlgText.Parent = dlg
 local dlgChoices = Instance.new("Frame")
-dlgChoices.Size = UDim2.new(1, -24, 0, 100)
-dlgChoices.Position = UDim2.new(0, 12, 0, 100)
+dlgChoices.LayoutOrder = 3
+dlgChoices.Size = UDim2.new(1, 0, 0, 0)
+dlgChoices.AutomaticSize = Enum.AutomaticSize.Y -- grows with the number of choices so all buttons show
 dlgChoices.BackgroundTransparency = 1
 dlgChoices.ZIndex = 41
 dlgChoices.Parent = dlg
-local dcl = Instance.new("UIListLayout"); dcl.Padding = UDim.new(0, 4); dcl.Parent = dlgChoices
+local dcl = Instance.new("UIListLayout"); dcl.Padding = UDim.new(0, 5); dcl.SortOrder = Enum.SortOrder.LayoutOrder; dcl.Parent = dlgChoices
 local dlgNpc: string? = nil
 
 Remotes.DialogueOpen.OnClientEvent:Connect(function(data: any)
@@ -1261,10 +1288,12 @@ Remotes.DialogueOpen.OnClientEvent:Connect(function(data: any)
 	for _, ch in dlgChoices:GetChildren() do
 		if ch:IsA("TextButton") then ch:Destroy() end
 	end
-	for _, c in data.choices do
-		local b = mkBtn(dlgChoices, c.label, 690, Color3.fromRGB(60, 80, 130))
-		b.Size = UDim2.new(1, 0, 0, 28)
+	for i, c in data.choices do
+		local b = mkBtn(dlgChoices, c.label, 100, Color3.fromRGB(60, 80, 130))
+		b.Size = UDim2.new(1, 0, 0, 38) -- full width + tall enough to tap on a phone
+		b.LayoutOrder = i
 		b.TextXAlignment = Enum.TextXAlignment.Left
+		b.TextWrapped = true
 		b.ZIndex = 42
 		local token = c.to
 		b.Activated:Connect(function()
@@ -1284,7 +1313,33 @@ if ok and view then
 	render(view)
 end
 
--- ================= SPRINT (hold Shift) =================
+-- ================= MOBILE: fit every popup panel to the screen =================
+-- Cap each big popup to the screen width (centred), so on a phone nothing spills off the edges. On a
+-- big screen the UISizeConstraint keeps the original size. Height stays fixed (content scrolls inside).
+do
+	local function fit(frame: Instance?, w: number, h: number)
+		if not frame or not frame:IsA("GuiObject") then
+			return
+		end
+		local f = frame :: GuiObject
+		f.AnchorPoint = Vector2.new(0.5, 0.5)
+		f.Position = UDim2.new(0.5, 0, 0.46, 0)
+		f.Size = UDim2.new(1, -16, 0, h)
+		local sc = Instance.new("UISizeConstraint")
+		sc.MaxSize = Vector2.new(w, h)
+		sc.MinSize = Vector2.new(250, 0)
+		sc.Parent = f
+	end
+	fit(bagPanel, 380, 440)
+	fit(shopPanel, 460, 470)
+	fit(codexPanel, 460, 460)
+	fit(seedShop, 420, 460)
+	fit(tradeWin, 480, 340)
+	fit(helpPanel, 420, 420)
+	fit(fullMap, 420, 420)
+end
+
+-- ================= SPRINT (Shift on PC, on-screen button on mobile) =================
 local UIS = game:GetService("UserInputService")
 local SPRINT_MULT = 1.7
 local sprinting = false
@@ -1293,31 +1348,67 @@ local function humanoid(): Humanoid?
 	local c = player.Character
 	return c and c:FindFirstChildOfClass("Humanoid")
 end
+local sprintBtn: TextButton? = nil
+local function setSprint(on: boolean)
+	local hum = humanoid()
+	if not hum then
+		return
+	end
+	if on and not sprinting then
+		sprinting = true
+		baseWS = hum.WalkSpeed -- remember the current speed (vehicle/upgrade already applied by server)
+		hum.WalkSpeed = baseWS * SPRINT_MULT
+	elseif not on and sprinting then
+		sprinting = false
+		hum.WalkSpeed = baseWS
+	end
+	if sprintBtn then
+		sprintBtn.BackgroundColor3 = sprinting and Color3.fromRGB(120, 200, 90) or Color3.fromRGB(70, 110, 60)
+	end
+end
 UIS.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
 	if gameProcessed then
 		return
 	end
 	if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.RightShift then
-		local hum = humanoid()
-		if hum and not sprinting then
-			sprinting = true
-			baseWS = hum.WalkSpeed -- remember the current speed (vehicle/upgrade already applied by server)
-			hum.WalkSpeed = baseWS * SPRINT_MULT
-		end
+		setSprint(true)
 	end
 end)
 UIS.InputEnded:Connect(function(input: InputObject)
 	if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.RightShift then
-		local hum = humanoid()
-		if hum and sprinting then
-			sprinting = false
-			hum.WalkSpeed = baseWS
-		end
+		setSprint(false)
 	end
 end)
 player.CharacterAdded:Connect(function()
 	sprinting = false -- reset on respawn
+	if sprintBtn then
+		sprintBtn.BackgroundColor3 = Color3.fromRGB(70, 110, 60)
+	end
 end)
+
+-- MOBILE: touch devices have no Shift key, so add an on-screen SPRINT button (tap to toggle run).
+-- Sits bottom-right, above Roblox's jump button and clear of the movement thumbstick (bottom-left).
+if UIS.TouchEnabled then
+	local btn = Instance.new("TextButton")
+	btn.Name = "SprintButton"
+	btn.AnchorPoint = Vector2.new(1, 1)
+	btn.Position = UDim2.new(1, -24, 1, -168)
+	btn.Size = UDim2.new(0, 92, 0, 92)
+	btn.BackgroundColor3 = Color3.fromRGB(70, 110, 60)
+	btn.BackgroundTransparency = 0.2
+	btn.Text = "🏃 Sprint"
+	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 16
+	btn.AutoButtonColor = false
+	btn.ZIndex = 25
+	btn.Parent = gui
+	do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1, 0); c.Parent = btn end
+	sprintBtn = btn
+	btn.Activated:Connect(function()
+		setSprint(not sprinting)
+	end)
+end
 
 -- ================= AMBIENT LIFE (polish) =================
 -- All local to this client (cheap, no server load): soft clouds drifting across the sky, butterflies
