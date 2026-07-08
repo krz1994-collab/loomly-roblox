@@ -282,26 +282,52 @@ local COL_LOCKED = Color3.fromRGB(70, 70, 70)
 local COL_POOR = Color3.fromRGB(95, 72, 60)
 
 local seedButtons: { [string]: TextButton } = {}
-local builtSeeds = false
 
-local function buildSeeds(view: any)
+-- The bottom bar is a clean HOTBAR of the seeds you actually OWN (bought at the 🌱 Seed Shop). It is NOT
+-- a shop: no prices, no locked rows -- you buy seeds at the Seed Shop building/NPC (or the 🌱 Seeds
+-- button), and here you just pick which of your owned seeds the next Plant press uses. Rebuilt each push.
+local function rebuildSeedBar(view: any)
+	for _, ch in seedBar:GetChildren() do
+		if ch:IsA("TextButton") then
+			ch:Destroy()
+		end
+	end
+	seedButtons = {}
+	local any = false
 	for _, s in view.seeds do
-		local btn = Instance.new("TextButton")
-		btn.Size = UDim2.new(0, 96, 1, 0)
-		btn.BackgroundColor3 = COL_NORMAL
-		btn.TextColor3 = Color3.fromRGB(245, 245, 240)
-		btn.Font = Enum.Font.GothamMedium
-		btn.TextSize = 12
-		btn.Text = s.emoji .. " " .. s.id
-		btn.Parent = seedBar
+		if s.unlocked and (s.owned or 0) > 0 then
+			any = true
+			local btn = Instance.new("TextButton")
+			btn.Size = UDim2.new(0, 96, 1, 0)
+			btn.BackgroundColor3 = if view.selectedSeed == s.id then COL_SELECTED else COL_NORMAL
+			btn.TextColor3 = Color3.fromRGB(245, 245, 240)
+			btn.Font = Enum.Font.GothamMedium
+			btn.TextSize = 12
+			btn.Text = s.emoji .. " " .. s.id .. "\n×" .. s.owned
+			btn.Parent = seedBar
+			local corner = Instance.new("UICorner")
+			corner.CornerRadius = UDim.new(0, 6)
+			corner.Parent = btn
+			seedButtons[s.id] = btn
+			local sid = s.id
+			btn.Activated:Connect(function()
+				Remotes.SelectSeed:FireServer(sid) -- pick which owned seed to plant next
+			end)
+		end
+	end
+	if not any then -- own nothing yet -> point the player at the shop instead of an empty bar
+		local hint = Instance.new("TextButton")
+		hint.Size = UDim2.new(0, 300, 1, 0)
+		hint.BackgroundColor3 = Color3.fromRGB(70, 110, 60)
+		hint.TextColor3 = Color3.fromRGB(240, 245, 235)
+		hint.Font = Enum.Font.GothamMedium
+		hint.TextSize = 13
+		hint.Text = "🌱 No seeds yet — buy some at the 🌱 Seed Shop (or the 🌱 Seeds button, top right)"
+		hint.AutoButtonColor = false
+		hint.Parent = seedBar
 		local corner = Instance.new("UICorner")
 		corner.CornerRadius = UDim.new(0, 6)
-		corner.Parent = btn
-		seedButtons[s.id] = btn
-		btn.Activated:Connect(function()
-			-- picking a seed is just a request; server records it + re-checks on plant
-			Remotes.SelectSeed:FireServer(s.id)
-		end)
+		corner.Parent = hint
 	end
 end
 
@@ -395,25 +421,7 @@ local function render(view: any)
 	end
 	invLabel.Text = if count == 0 then "🎒 empty" else string.format("🎒 %d items · worth %dc", count, worth)
 
-	if not builtSeeds then
-		buildSeeds(view)
-		builtSeeds = true
-	end
-	for _, s in view.seeds do
-		local btn = seedButtons[s.id]
-		if btn then
-			if not s.unlocked then
-				btn.BackgroundColor3 = COL_LOCKED
-				btn.Text = s.emoji .. " " .. s.id .. "\nLOCKED"
-			else
-				-- the bar is a SELECTOR now: shows your bought stock (buy more at the 🌱 Seed Shop),
-				-- or the per-plant coin cost if you have none in stock.
-				btn.BackgroundColor3 = if view.selectedSeed == s.id then COL_SELECTED else COL_NORMAL
-				local line = (s.owned and s.owned > 0) and ("x" .. s.owned .. " owned") or ("plant " .. s.cost .. "c")
-				btn.Text = s.emoji .. " " .. s.id .. "\n" .. line
-			end
-		end
-	end
+	rebuildSeedBar(view)
 
 	-- event banner
 	if view.event then
@@ -1183,6 +1191,15 @@ end
 seedsBtn.Activated:Connect(function()
 	seedShop.Visible = not seedShop.Visible
 	if seedShop.Visible then refreshSeedShop() end
+end)
+
+-- pressing the 🌱 Seed Shop building/NPC in the world opens the buy panel here
+Remotes.OpenShop.OnClientEvent:Connect(function(which: any)
+	if which == "seeds" then
+		seedShop.Visible = true
+		refreshSeedShop()
+		playSound("click")
+	end
 end)
 
 -- keep an open bag / seed shop live as state pushes arrive

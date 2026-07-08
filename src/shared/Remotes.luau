@@ -26,7 +26,8 @@ local Bloomly = script.Parent -- the ReplicatedStorage.Bloomly folder
 -- Trade remotes (block 14b): direct player-to-player trade, both online, same server.
 --   TradeAction (client->server): { do="request"/"respond"/"offer"/"unoffer"/"confirm"/"cancel", ... }
 --   TradeUpdate (server->client): the live trade window state (partner, both offers, confirms) or nil
-local EVENT_NAMES = { "Plant", "Harvest", "SellAll", "StateUpdate", "SelectSeed", "Notify", "TradeAction", "TradeUpdate", "BuySeed", "DialogueOpen", "DialoguePick" }
+-- OpenShop (server->client): "open this shop panel" (e.g. "seeds"), fired when you press a shop building/NPC.
+local EVENT_NAMES = { "Plant", "Harvest", "SellAll", "StateUpdate", "SelectSeed", "Notify", "TradeAction", "TradeUpdate", "BuySeed", "DialogueOpen", "DialoguePick", "OpenShop" }
 local FUNCTION_NAMES = { "GetState", "GetCodex" }
 
 -- The server (and only the server) creates the folder + instances. It is safe to run this on
@@ -70,6 +71,7 @@ local Remotes = {
 	BuySeed = folder:WaitForChild("BuySeed") :: RemoteEvent,
 	DialogueOpen = folder:WaitForChild("DialogueOpen") :: RemoteEvent, -- server -> client: show a node
 	DialoguePick = folder:WaitForChild("DialoguePick") :: RemoteEvent, -- client -> server: chose an option
+	OpenShop = folder:WaitForChild("OpenShop") :: RemoteEvent, -- server -> client: open a shop panel by name
 	GetState = folder:WaitForChild("GetState") :: RemoteFunction,
 	GetCodex = folder:WaitForChild("GetCodex") :: RemoteFunction,
 }

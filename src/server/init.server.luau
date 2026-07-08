@@ -614,7 +614,35 @@ local function dialogueNode(npcId: string, token: string): any
 	end
 	return nil
 end
+-- friendly one-liners for the city shopkeepers (greeter NPCs outside each civic building)
+local CITY_LINE: { [string]: string } = {
+	Hospital = "Careful out on the islands! Come rest here anytime you need patching up. 🩹",
+	Bank = "Your coins are safe with us. Farm hard and watch your fortune grow! 💰",
+	["Car Dealership"] = "A big island needs fast wheels! Grab a vehicle to zip between the farms. 🚗",
+	["Bike Shop"] = "A bike beats walking any day. Take one for a spin around town! 🚲",
+	School = "Every great farmer started as a student. Keep learning and growing! 📚",
+	Cafe = "Pull up a chair! Best coffee on the island, brewed fresh. ☕",
+	Bakery = "Smell that? Fresh bread every morning. Grab a bite before you sail! 🥐",
+	Grocery = "Everything a farmer needs under one roof. Come browse! 🛒",
+	Cinema = "New show tonight! Take a break from farming and enjoy the big screen. 🎬",
+	["Police Station"] = "All quiet in Bloomly town. Play nice and have fun out there! 🚓",
+	["Fire Station"] = "Stay safe near the volcano isle! We're always on standby. 🚒",
+	Library = "Shhh! Rare farming secrets hide in these books. Have a read. 📚",
+	Gym = "Strong farmers grow the biggest crops! Come get a workout in. 💪",
+	["Clothing Store"] = "Look sharp on the farm! New styles in every week. 👕",
+	Hotel = "Travelling far to the islands? Rest up here, we've got the comfiest beds. 🏨",
+	["Town Hall"] = "Welcome to Bloomly! We're proud of our little town. Enjoy your stay. 🏛️",
+}
 local function sendDialogue(player: Player, npcId: string, token: string)
+	-- city greeter NPCs (id "city:<emoji>:<name>") aren't in Npcs.list -> give them a friendly generic line
+	if string.sub(npcId, 1, 5) == "city:" then
+		local emoji, name = string.match(npcId, "^city:(.-):(.+)$")
+		if emoji and name then
+			local line = CITY_LINE[name] or ("Welcome to the " .. name .. "! Lovely to see you in town. 😊")
+			Remotes.DialogueOpen:FireClient(player, { npcId = npcId, name = name, emoji = emoji, text = "Hi there! " .. line, choices = { { label = "Thanks! 👋", to = "ACT_CLOSE" } } })
+		end
+		return
+	end
 	local node = dialogueNode(npcId, token)
 	local npc = npcById(npcId)
 	if not node or not npc then
@@ -674,6 +702,8 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 		if type(npcId) == "string" then
 			sendDialogue(player, npcId, "start") -- opens the branching dialogue; the "work?" choice runs the quest
 		end
+	elseif kind == "seedshop" then
+		Remotes.OpenShop:FireClient(player, "seeds") -- tell the client to open the Seed Shop buy panel
 	elseif kind == "sell" then
 		local sold = 0
 		for _, qn in state.inventory do
@@ -702,9 +732,12 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 		local changed = false
 		if plot and plot.seedId == nil then
 			local seed = selectedSeed[player.UserId] or "radish"
-			changed = Farm.plant(state, seed, plotIndex, ownedPlotsFor(player))
-			if changed then
+			local pok, preason = Farm.plant(state, seed, plotIndex, ownedPlotsFor(player))
+			changed = pok
+			if pok then
 				Quest.report(player, "plant", seed, 1)
+			elseif preason == "no_seeds" then
+				Remotes.Notify:FireClient(player, "🌱 No " .. seed .. " seeds — buy some at the 🌱 Seed Shop (near spawn)!")
 			end
 		elseif plot and plot.seedId ~= nil then
 			local seed = plot.seedId

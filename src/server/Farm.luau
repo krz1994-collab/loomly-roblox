@@ -142,19 +142,15 @@ function Farm.plant(state: PlayerState, seedId: string, plotIndex: number, owned
 	if not Plants.isUnlocked(plant, state, ownedPlots) then
 		return false, "locked"
 	end
-	-- Seeds: if you bought this seed at the Seed Shop you plant it from STOCK (free); otherwise you pay
-	-- the coin cost per plant (a fallback so you can always plant even with no stock). The server owns
-	-- both paths; the client only asks to plant.
-	if state.seeds and (state.seeds[seedId] or 0) > 0 then
-		state.seeds[seedId] -= 1
-		if state.seeds[seedId] <= 0 then
-			state.seeds[seedId] = nil
-		end
-	else
-		if state.coins < plant.cost then
-			return false, "too_poor"
-		end
-		state.coins -= plant.cost
+	-- Seeds: you plant from the STOCK you bought at the Seed Shop (the coin cost is paid there, at purchase,
+	-- not here). If you have no seeds of this crop, planting is refused and you're pointed at the shop --
+	-- buying at the shop/NPC is the one way to get seeds (Adam's design: "seeds u npc kupować").
+	if not (state.seeds and (state.seeds[seedId] or 0) > 0) then
+		return false, "no_seeds"
+	end
+	state.seeds[seedId] -= 1
+	if state.seeds[seedId] <= 0 then
+		state.seeds[seedId] = nil
 	end
 	plot.seedId = seedId
 	-- grow time shrinks with the Fast-Growth upgrade, an active "grow" event (Time Storm ×4 etc.), and

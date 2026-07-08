@@ -198,7 +198,9 @@ local function mkBuilding(x: number, z: number, w: number, d: number, h: number,
 	-- greeter NPC out front (faces the plaza too). Feet at ground; front is toward the centre.
 	local front = place(0, 0, -d / 2 - 7)
 	local gm, gt = mkCharacter("shop_" .. seed, front.X, front.Z, seed)
-	mkBillboard(gt, 12, 2, 8).Text = emoji
+	mkBillboard(gt, 12, 2, 8).Text = emoji .. " " .. name
+	local pr = mkPrompt(gt, "Talk", "talk") -- every civic shopkeeper is talkable (generic city dialogue)
+	pr:SetAttribute("npc", "city:" .. emoji .. ":" .. name)
 	return model
 end
 
@@ -393,8 +395,9 @@ function World.build()
 	spawn.Parent = rootF
 	mkMarket(-30, WorldLayout.PLAZA_Z, rootF, "🧺 Market — sell")
 	do -- placeholder shop signs (systems come in later layers)
-		local seeds = mkPart("SeedShop", Vector3.new(6, 10, 6), CFrame.new(30, 5, WorldLayout.PLAZA_Z), Color3.fromRGB(90, 170, 90), rootF)
-		mkBillboard(seeds, 8, 1.6, 7).Text = "🌱 Seeds (use bar below)"
+		local seeds = mkPart("SeedShop", Vector3.new(8, 11, 8), CFrame.new(30, 5.5, WorldLayout.PLAZA_Z), Color3.fromRGB(90, 170, 90), rootF)
+		mkPrompt(seeds, "Buy seeds", "seedshop") -- opens the Seed Shop buy panel (buy seeds into stock)
+		mkBillboard(seeds, 10, 1.8, 7).Text = "🌱 Seed Shop — press E to buy"
 		local tools = mkPart("ToolShop", Vector3.new(6, 10, 6), CFrame.new(0, 5, WorldLayout.PLAZA_Z + 40), Color3.fromRGB(120, 130, 160), rootF)
 		mkBillboard(tools, 8, 1.6, 7).Text = "🛠️ Tools (soon)"
 	end
