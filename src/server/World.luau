@@ -110,7 +110,7 @@ local NPC_SHIRT = { Color3.fromRGB(80, 140, 220), Color3.fromRGB(220, 90, 90), C
 local function mkCharacter(id: string, x: number, z: number, seed: number): (Model, BasePart)
 	local model = Instance.new("Model")
 	model.Name = "Npc_" .. id
-	model.Parent = rootF
+	model.Parent = root -- FIX: was `rootF` (a local inside World.build) => a nil global => NPCs never appeared
 	local skin = NPC_SKIN[(seed % #NPC_SKIN) + 1]
 	local shirt = NPC_SHIRT[(seed % #NPC_SHIRT) + 1]
 	local function part(nm: string, size: Vector3, ox: number, oy: number, color: Color3): Part
@@ -132,7 +132,7 @@ end
 local function mkMonster(mdef: any, x: number, z: number, idx: number): Model
 	local model = Instance.new("Model")
 	model.Name = "Mon_" .. mdef.id .. "_" .. idx
-	model.Parent = rootF
+	model.Parent = root -- FIX: was `rootF` (nil global) => monsters never appeared
 	local col = Color3.fromRGB(mdef.color[1], mdef.color[2], mdef.color[3])
 	local body = mkPart("MonBody", Vector3.new(6, 7, 5), CFrame.new(x, 4, z), col, model, Enum.Material.SmoothPlastic)
 	local eyeL = mkPart("EyeL", Vector3.new(1.1, 1.1, 1.1), CFrame.new(x - 1.3, 6, z - 2.4), Color3.fromRGB(255, 255, 255), model, Enum.Material.Neon)
@@ -254,72 +254,96 @@ function World.build()
 	sections = {}
 
 	local rootF = root :: Folder
-	local cols = WorldLayout.SECTION_COLS
-	local rows = math.ceil(Config.PLOT_SECTIONS / cols)
-	local gridW = cols * WorldLayout.SECTION_SPACING
-	local gridD = rows * WorldLayout.SECTION_SPACING
+	local R = WorldLayout.MAINLAND_RADIUS -- grass island radius (covers every plot ring + a margin)
 
-	-- ground = a GRID OF TILES under the whole mainland (plaza + all 100 plots + the roads between).
-	-- IMPORTANT: a single Roblox part cannot exceed 2048 studs on an axis, so one giant ground part is
-	-- invalid and leaves a void. We tile it with ~1700-stud parts so there is solid ground everywhere and
-	-- you can walk the entire map on foot without ever falling into the abyss.
+	-- MAINLAND = one round, ORGANIC grass island centred on (0,0). Its COASTLINE follows a wavy radius per
+	-- angle (not a straight ruler edge): we lay a grid of flat tiles but only place a tile where it sits
+	-- inside the wavy shore radius, and tiles near the shore are SAND (a beach ring). Tiling also keeps
+	-- every part < 2048 studs (the old giant part was invalid -> the void). Terrain water (below) fills the
+	-- sea around the island, so where the grass/sand stops you step straight into real, swimmable water.
+	local function shoreR(ang: number): number
+		return R + math.sin(ang * 3) * 260 + math.sin(ang * 5 + 1.3) * 150 + math.cos(ang * 2 + 0.6) * 100
+	end
 	do
-		local tile = 1700
-		local x0, x1 = -2800, 2800
-		local z0, z1 = -500, WorldLayout.GRID_START_Z + gridD + 500
-		local nx = math.ceil((x1 - x0) / tile)
-		local nz = math.ceil((z1 - z0) / tile)
-		-- varied ground types so the map is not one flat grey: grass, dirt, stone (all flat + smooth,
-		-- so bikes/cars drive over the whole thing without bumps).
-		local GT = {
-			{ Color3.fromRGB(96, 150, 70), Enum.Material.Grass },
-			{ Color3.fromRGB(112, 162, 82), Enum.Material.Grass },
-			{ Color3.fromRGB(124, 108, 84), Enum.Material.Ground },
-			{ Color3.fromRGB(132, 132, 138), Enum.Material.Slate },
+		local tile = 300
+		local span = R + 450
+		local n = math.ceil((span * 2) / tile)
+		local GRASS = {
+			{ Color3.fromRGB(96, 158, 74), Enum.Material.Grass },
+			{ Color3.fromRGB(110, 170, 86), Enum.Material.Grass },
+			{ Color3.fromRGB(122, 178, 94), Enum.Material.LeafyGrass },
 		}
-		for ix = 0, nx - 1 do
-			for iz = 0, nz - 1 do
-				local cx = x0 + ix * tile + tile / 2
-				local cz = z0 + iz * tile + tile / 2
-				local g = GT[((ix + iz * 2) % #GT) + 1]
-				mkPart("GroundTile_" .. ix .. "_" .. iz, Vector3.new(tile, 2, tile), CFrame.new(cx, -1, cz), g[1], rootF, g[2])
+		for ix = 0, n - 1 do
+			for iz = 0, n - 1 do
+				local cx = -span + ix * tile + tile / 2
+				local cz = -span + iz * tile + tile / 2
+				local dist = math.sqrt(cx * cx + cz * cz)
+				local edge = shoreR(math.atan2(cz, cx))
+				if dist <= edge then
+					if dist >= edge - 300 then -- shoreline band => sandy beach that wraps the whole island
+						mkPart("Beach_" .. ix .. "_" .. iz, Vector3.new(tile + 2, 2, tile + 2), CFrame.new(cx, -1, cz), Color3.fromRGB(228, 210, 152), rootF, Enum.Material.Sand)
+					else
+						local g = GRASS[((ix + iz) % #GRASS) + 1]
+						mkPart("Ground_" .. ix .. "_" .. iz, Vector3.new(tile + 2, 2, tile + 2), CFrame.new(cx, -1, cz), g[1], rootF, g[2])
+					end
+				end
 			end
 		end
 	end
 
-	-- scattered rocks/boulders ringing the mainland: scenery you can drive between. They sit in the
-	-- OUTER margin (past the plot grid) so they never block a plot or a road.
+	-- ROADS: grey paths so the town reads as a town. A ring road just outside the plaza + radial spokes
+	-- out to the coast (drivable by bike/car; they sit just under the plot platforms so they show only in
+	-- the gaps). Kept < 2048 studs each.
 	do
-		local rockCol = { Color3.fromRGB(120, 120, 126), Color3.fromRGB(100, 100, 106), Color3.fromRGB(138, 132, 120) }
-		local gz = (WorldLayout.GRID_START_Z + gridD) / 2 - 200
-		for k = 1, 60 do
-			local a = (k / 60) * math.pi * 2 + (k % 3) * 0.3
-			local r = 1900 + (k % 5) * 150
-			local rx = math.cos(a) * r
-			local rz = gz + math.sin(a) * r
-			local sz = 3 + (k % 6) * 1.4
-			local rock = mkPart("Rock" .. k, Vector3.new(sz, sz * 0.75, sz * (0.8 + (k % 3) * 0.15)), CFrame.new(rx, sz * 0.3, rz) * CFrame.Angles((k % 4) * 0.3, (k % 7) * 0.5, 0), rockCol[(k % 3) + 1], rootF, Enum.Material.Rock)
+		local roadCol = Color3.fromRGB(96, 100, 104)
+		for k = 0, 11 do -- 12 radial spokes fanning out from the centre (len kept < 2048 = valid part)
+			local a = k / 12 * math.pi * 2
+			local len = 1900
+			local mid = 240 + len / 2
+			mkPart("Spoke" .. k, Vector3.new(len, 0.4, 26), CFrame.new(math.cos(a) * mid, 0.08, math.sin(a) * mid) * CFrame.Angles(0, -a, 0), roadCol, rootF, Enum.Material.Concrete)
+		end
+		for ring = 0, 4 do -- concentric ring roads between the plot rings
+			local rr = WorldLayout.RING0 - 180 + ring * WorldLayout.SECTION_SPACING
+			local segs = math.max(24, math.floor((2 * math.pi * rr) / 90))
+			for s = 0, segs - 1 do
+				local a = s / segs * math.pi * 2
+				local seg = (2 * math.pi * rr) / segs + 4
+				mkPart("Ring" .. ring .. "_" .. s, Vector3.new(seg, 0.4, 20), CFrame.new(math.cos(a) * rr, 0.06, math.sin(a) * rr) * CFrame.Angles(0, -a + math.pi / 2, 0), roadCol, rootF, Enum.Material.Concrete)
+			end
 		end
 	end
 
-	-- FORESTS + MOUNTAINS ringing the mainland so it feels like a real island, not an empty field.
+	-- scattered rocks/boulders in the COASTAL BELT (just inside the shore, past the outermost plot ring)
+	-- so they dress the shoreline without blocking a plot or a road.
 	do
-		local gz = (WorldLayout.GRID_START_Z + gridD) / 2 - 200
-		-- a belt of trees (trunk + leafy canopy)
-		for k = 1, 90 do
-			local a = (k / 90) * math.pi * 2 + (k % 5) * 0.22
-			local r = 2000 + (k % 7) * 120
-			local tx, tz = math.cos(a) * r, gz + math.sin(a) * r
+		local rockCol = { Color3.fromRGB(120, 120, 126), Color3.fromRGB(100, 100, 106), Color3.fromRGB(138, 132, 120) }
+		for k = 1, 70 do
+			local a = (k / 70) * math.pi * 2 + (k % 3) * 0.3
+			local r = shoreR(a) - 120 - (k % 5) * 40
+			local rx, rz = math.cos(a) * r, math.sin(a) * r
+			local sz = 3 + (k % 6) * 1.4
+			mkPart("Rock" .. k, Vector3.new(sz, sz * 0.75, sz * (0.8 + (k % 3) * 0.15)), CFrame.new(rx, sz * 0.3, rz) * CFrame.Angles((k % 4) * 0.3, (k % 7) * 0.5, 0), rockCol[(k % 3) + 1], rootF, Enum.Material.Rock)
+		end
+	end
+
+	-- FORESTS + MOUNTAINS in the coastal belt so the island feels real, not an empty field. Trees ring the
+	-- shore (inside the beach); a few big rounded mountains sit right at the coast as landmarks.
+	do
+		-- a belt of trees (trunk + leafy canopy) hugging the shoreline
+		for k = 1, 120 do
+			local a = (k / 120) * math.pi * 2 + (k % 5) * 0.22
+			local r = shoreR(a) - 190 - (k % 7) * 45
+			local tx, tz = math.cos(a) * r, math.sin(a) * r
 			local h = 14 + (k % 5) * 4
 			mkPart("Trunk" .. k, Vector3.new(3, h, 3), CFrame.new(tx, h / 2, tz), Color3.fromRGB(105, 75, 50), rootF, Enum.Material.Wood)
 			local leaf = mkPart("Leaves" .. k, Vector3.new(14, 14, 14), CFrame.new(tx, h + 4, tz), Color3.fromRGB(60 + (k % 3) * 20, 140 + (k % 4) * 15, 60), rootF, Enum.Material.Grass)
 			leaf.Shape = Enum.PartType.Ball
 		end
-		-- a ring of mountains further out (big stone cones)
+		-- a ring of rounded mountains right at the coast (big stone hills w/ snow caps)
 		for k = 1, 14 do
-			local a = (k / 14) * math.pi * 2
-			local r = 2650
-			local mx, mz = math.cos(a) * r, gz + math.sin(a) * r
+			local a = (k / 14) * math.pi * 2 + 0.2
+			local r = shoreR(a) - 40
+			local mx, mz = math.cos(a) * r, math.sin(a) * r
 			local mh = 120 + (k % 4) * 40
 			local m = mkPart("Mountain" .. k, Vector3.new(mh * 0.9, mh, mh * 0.9), CFrame.new(mx, mh / 2 - 10, mz), Color3.fromRGB(110, 108, 112), rootF, Enum.Material.Rock)
 			m.Shape = Enum.PartType.Ball -- rounded peak (cheap, reads as a hill/mountain)
@@ -531,39 +555,54 @@ function World.build()
 		mkGather("Flowers", 60, gz, Vector3.new(8, 2, 8), Color3.fromRGB(220, 150, 200), Enum.Material.Grass, "Catch bug", "catch_bug", "bug", "🦋 Bug Patch", rootF)
 	end
 
-	-- ocean + 11 islands far out (10 biomes + the Enchanted Forest)
-	-- ocean = TILED water (a single part can't exceed 2048 studs -> the old one-part ocean was invalid,
-	-- which is why the map ended in a void). This fills a huge area around the mainland + islands at
-	-- water level, so you're surrounded by sea and reach the islands by boat over it.
+	-- OCEAN = real Roblox TERRAIN WATER (not a flat blue part you walk on). Terrain water lets the avatar
+	-- actually SWIM, and it has no 2048-stud part limit. Its surface sits just below the beach (top ~ -1.5)
+	-- so where the sand ends you step down into swimmable sea. We fill it in 2000-stud blocks out past the
+	-- island ring, and SKIP blocks fully under the mainland (that water would be hidden by grass anyway).
+	-- NOTE: this is the one thing I cannot performance-test from outside Studio -- if it ever hurts your
+	-- framerate, tell me and I will shrink the fill area or its depth (it's this single block).
 	do
-		local otile = 2000
-		local reach = WorldLayout.ISLAND_RING + 2500
-		local cz = WorldLayout.MAP_CENTER_Z
-		local n = math.ceil((reach * 2) / otile)
+		local terrain = workspace.Terrain
+		pcall(function()
+			terrain:Clear()
+		end)
+		local wtop = -1.5
+		local depth = 7
+		local wy = wtop - depth / 2
+		local tile = 2000
+		local reach = WorldLayout.ISLAND_RING + 700
+		local n = math.ceil((reach * 2) / tile)
 		for ix = 0, n - 1 do
 			for iz = 0, n - 1 do
-				local ox = -reach + ix * otile + otile / 2
-				local oz = cz - reach + iz * otile + otile / 2
-				mkPart("Ocean_" .. ix .. "_" .. iz, Vector3.new(otile, 3, otile), CFrame.new(ox, -4, oz), Color3.fromRGB(58, 120, 190), rootF, Enum.Material.Water)
+				local ox = -reach + ix * tile + tile / 2
+				local oz = -reach + iz * tile + tile / 2
+				if math.sqrt(ox * ox + oz * oz) > WorldLayout.MAINLAND_RADIUS - 800 then
+					terrain:FillBlock(CFrame.new(ox, wy, oz), Vector3.new(tile, depth, tile), Enum.Material.Water)
+				end
 			end
 		end
 	end
-	-- a few ships sailing the sea for life (slowly circle between the mainland and the islands)
+	-- a few ships sailing the sea between the mainland and the islands. They move SLOWLY (a real sail, not
+	-- rockets) and gently bob + roll on the water surface so it looks natural.
 	do
 		local ships = {}
 		for k = 1, 5 do
-			local hull = mkPart("Ship" .. k, Vector3.new(18, 8, 40), CFrame.new(0, 2, 0), Color3.fromRGB(120, 85, 55), rootF, Enum.Material.WoodPlanks)
+			local hull = mkPart("Ship" .. k, Vector3.new(18, 8, 40), CFrame.new(0, 1, 0), Color3.fromRGB(120, 85, 55), rootF, Enum.Material.WoodPlanks)
 			local sail = mkPart("Sail" .. k, Vector3.new(2, 26, 22), CFrame.new(0, 18, 0), Color3.fromRGB(235, 235, 240), hull, Enum.Material.Fabric)
-			table.insert(ships, { hull = hull, sail = sail, r = 2600 + k * 250, a = k * 1.25, spd = 0.02 + k * 0.004 })
+			-- spd is radians per 0.1s tick: ~0.0012 rad/tick => ~0.012 rad/s => ~40 studs/s at r~3000. Gentle.
+			table.insert(ships, { hull = hull, sail = sail, r = 2850 + k * 130, a = k * 1.25, spd = 0.0011 + k * 0.00018 })
 		end
 		task.spawn(function()
 			while true do
 				task.wait(0.1)
-				for _, s in ships do
+				local t = os.clock()
+				for i, s in ships do
 					s.a += s.spd
 					local x = math.cos(s.a) * s.r
-					local z = WorldLayout.MAP_CENTER_Z + math.sin(s.a) * s.r
-					s.hull.CFrame = CFrame.new(x, 2, z) * CFrame.Angles(0, -s.a + math.pi / 2, 0)
+					local z = math.sin(s.a) * s.r
+					local bob = math.sin(t * 0.7 + i) * 1.2 -- rise/fall on the swell
+					local roll = math.sin(t * 0.9 + i * 1.3) * 0.05 -- slight side-to-side lean
+					s.hull.CFrame = CFrame.new(x, 1 + bob, z) * CFrame.Angles(0, -s.a + math.pi / 2, 0) * CFrame.Angles(0, 0, roll)
 					s.sail.CFrame = s.hull.CFrame * CFrame.new(0, 16, 0)
 				end
 			end
@@ -622,20 +661,21 @@ function World.build()
 	-- SEA LIFE: fish circling near the shore that occasionally leap out of the water, + a ring of foam
 	-- "waves" that bob at the shoreline so the sea feels alive.
 	do
-		local cz = WorldLayout.MAP_CENTER_Z
+		local WATER_TOP = -1.5
 		local fishCol = { Color3.fromRGB(120, 165, 205), Color3.fromRGB(230, 150, 90), Color3.fromRGB(200, 210, 120), Color3.fromRGB(180, 130, 210) }
 		local fish = {}
-		for k = 1, 18 do
-			local f = mkPart("Fish" .. k, Vector3.new(2, 1.2, 4.2), CFrame.new(0, -2, 0), fishCol[(k % 4) + 1], rootF, Enum.Material.SmoothPlastic)
-			table.insert(fish, { part = f, a = (k / 18) * math.pi * 2, r = 1950 + (k % 5) * 120, spd = 0.02 + (k % 3) * 0.006, jp = k * 0.35 })
+		for k = 1, 22 do
+			local f = mkPart("Fish" .. k, Vector3.new(2, 1.2, 4.2), CFrame.new(0, WATER_TOP - 1, 0), fishCol[(k % 4) + 1], rootF, Enum.Material.SmoothPlastic)
+			table.insert(fish, { part = f, a = (k / 22) * math.pi * 2, off = 120 + (k % 5) * 90, spd = 0.008 + (k % 3) * 0.003, jp = k * 0.35 })
 		end
+		-- foam "wave" crests hugging the ORGANIC shoreline (follow shoreR per angle, at the water surface)
 		local foam = {}
-		for k = 1, 20 do
-			local a = (k / 20) * math.pi * 2
-			local r = 1850
-			local fm = mkPart("Foam" .. k, Vector3.new(120, 1.5, 30), CFrame.new(math.cos(a) * r, -2.4, cz + math.sin(a) * r) * CFrame.Angles(0, -a, 0), Color3.fromRGB(225, 240, 250), rootF, Enum.Material.Foil)
+		for k = 1, 60 do
+			local a = (k / 60) * math.pi * 2
+			local r = shoreR(a) + 8
+			local fm = mkPart("Foam" .. k, Vector3.new(90, 1, 22), CFrame.new(math.cos(a) * r, WATER_TOP, math.sin(a) * r) * CFrame.Angles(0, -a + math.pi / 2, 0), Color3.fromRGB(225, 240, 250), rootF, Enum.Material.Foil)
 			fm.Transparency = 0.35
-			table.insert(foam, { part = fm, base = -2.4, off = k * 0.6 })
+			table.insert(foam, { part = fm, base = WATER_TOP, off = k * 0.4 })
 		end
 		task.spawn(function()
 			while true do
@@ -643,18 +683,19 @@ function World.build()
 				local t = os.clock()
 				for _, fo in fish do
 					fo.a += fo.spd
-					local x = math.cos(fo.a) * fo.r
-					local z = cz + math.sin(fo.a) * fo.r
+					local r = shoreR(fo.a) + fo.off -- swim just offshore, following the wavy coast
+					local x = math.cos(fo.a) * r
+					local z = math.sin(fo.a) * r
 					local phase = (t * 0.5 + fo.jp * 6) % 6.5
-					local y, tilt = -2, 0
+					local y, tilt = WATER_TOP - 1, 0
 					if phase < 1.1 then -- a leap out of the water
-						y = -2 + math.sin(phase / 1.1 * math.pi) * 7
+						y = WATER_TOP - 1 + math.sin(phase / 1.1 * math.pi) * 7
 						tilt = math.cos(phase / 1.1 * math.pi) * 0.7
 					end
 					fo.part.CFrame = CFrame.new(x, y, z) * CFrame.Angles(tilt, -fo.a + math.pi / 2, 0)
 				end
 				for _, fm in foam do
-					fm.part.Position = Vector3.new(fm.part.Position.X, fm.base + math.sin(t * 1.2 + fm.off) * 0.9, fm.part.Position.Z)
+					fm.part.Position = Vector3.new(fm.part.Position.X, fm.base + math.sin(t * 1.2 + fm.off) * 0.6, fm.part.Position.Z)
 				end
 			end
 		end)
@@ -692,7 +733,6 @@ function World.build()
 	do
 		local wanderers = {}
 		local seed = 0
-		local mapMidZ = (WorldLayout.GRID_START_Z + gridD) / 2 - 200
 		for _, npc in Npcs.list do
 			seed += 1
 			local x, z
@@ -700,13 +740,15 @@ function World.build()
 				local c = WorldLayout.islandCenter(npc.island)
 				x, z = c.x, c.z + 30
 			elseif npc.id == "willow" or npc.id == "pip" then
-				-- keep the starter NPCs (quest-giver Willow + seed shop Pip) right by spawn
-				x, z = (npc.id == "pip" and 22 or -22), WorldLayout.PLAZA_Z + 26
+				-- keep the starter NPCs (quest-giver Willow + seed shop Pip) right by the central plaza
+				x, z = (npc.id == "pip" and 24 or -24), WorldLayout.PLAZA_Z + 30
 			else
-				-- golden-angle scatter across the mainland so shopkeepers/NPCs are spread out, not clumped
+				-- golden-angle scatter across the whole island (centred on 0,0) so shopkeepers + wanderers
+				-- are spread map-wide, standing on the ring roads between the farms, not clumped in one spot.
+				-- r is clamped to just inside the wavy shore so an NPC never ends up hovering over the sea.
 				local a = seed * 2.39996
-				local r = 260 + (seed % 9) * 200
-				x, z = math.cos(a) * r, mapMidZ + math.sin(a) * r
+				local r = math.min(300 + (seed % 10) * 220, shoreR(a) - 240)
+				x, z = math.cos(a) * r, math.sin(a) * r
 			end
 			local model, torso = mkCharacter(npc.id, x, z, seed)
 			local pr = mkPrompt(torso, "Talk", "talk")
@@ -730,19 +772,22 @@ function World.build()
 		end)
 	end
 
-	-- harbor in the plaza: a dock + a boat per island (sail = teleport for now)
+	-- harbor at the SOUTH COAST (at the real sea now): a dock reaching over the water + a boat per island
+	-- (sail = teleport for now). A radial road spoke runs from the central plaza out to it.
 	do
-		local dockZ = WorldLayout.PLAZA_Z - 70
-		mkPart("Dock", Vector3.new(WorldLayout.ISLAND_COUNT * 13, 1, 40), CFrame.new(0, 0.6, dockZ), Color3.fromRGB(150, 120, 90), rootF, Enum.Material.WoodPlanks)
+		-- south waterline (the +wave at due south puts the coast ~MAINLAND_RADIUS+140); the dock BRIDGES from
+		-- land out over the sea so you walk from the beach onto the pier and the boats sit on real water.
+		local shoreZ = -(WorldLayout.MAINLAND_RADIUS + 140)
+		mkPart("Dock", Vector3.new(WorldLayout.ISLAND_COUNT * 13, 1, 340), CFrame.new(0, 0.6, shoreZ), Color3.fromRGB(150, 120, 90), rootF, Enum.Material.WoodPlanks)
 		for i = 1, WorldLayout.ISLAND_COUNT do
 			local sx = (i - (WorldLayout.ISLAND_COUNT + 1) / 2) * 13
-			local boat = mkPart("Boat" .. i, Vector3.new(9, 3, 5), CFrame.new(sx, 2, dockZ - 24), Color3.fromRGB(140, 90, 60), rootF, Enum.Material.WoodPlanks)
+			local boat = mkPart("Boat" .. i, Vector3.new(9, 3, 5), CFrame.new(sx, 1.5, shoreZ - 150), Color3.fromRGB(140, 90, 60), rootF, Enum.Material.WoodPlanks)
 			local pr = mkPrompt(boat, "Sail to " .. (ISLAND_NAMES[i] or ("Island " .. i)), "sail")
 			pr:SetAttribute("islandIndex", i)
 		end
-		mkBillboard(mkPart("HarborSign", Vector3.new(3, 12, 3), CFrame.new(0, 6, dockZ + 16), Color3.fromRGB(120, 95, 70), rootF), 14, 2, 8).Text = "⚓ Harbor — sail to the islands"
+		mkBillboard(mkPart("HarborSign", Vector3.new(3, 12, 3), CFrame.new(0, 6, shoreZ + 150), Color3.fromRGB(120, 95, 70), rootF), 14, 2, 8).Text = "⚓ Harbor — sail to the islands"
 		-- Boat shop: buy your first boat here (gates all sailing). Captain Bay stands beside it.
-		local boatShop = mkPart("BoatShop", Vector3.new(7, 8, 6), CFrame.new((WorldLayout.ISLAND_COUNT + 3) * 7, 4, dockZ), Color3.fromRGB(120, 80, 55), rootF, Enum.Material.WoodPlanks)
+		local boatShop = mkPart("BoatShop", Vector3.new(7, 8, 6), CFrame.new((WorldLayout.ISLAND_COUNT + 3) * 7, 4, shoreZ + 150), Color3.fromRGB(120, 80, 55), rootF, Enum.Material.WoodPlanks)
 		mkPrompt(boatShop, "Buy a Boat (250c)", "buyboat")
 		mkBillboard(boatShop, 10, 1.8, 6).Text = "⛵ Boat Shop — buy your first boat!"
 	end
