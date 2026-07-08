@@ -1212,12 +1212,6 @@ for _ = 1, 8 do
 	table.insert(clouds, { part = c, speed = math.random(5, 14) })
 end
 
-local flyers = {}
-for _ = 1, 6 do
-	local b = decoPart(Vector3.new(1.4, 0.4, 1.4), Color3.fromHSV(math.random(), 0.6, 1), Enum.Material.Neon, 0.1)
-	table.insert(flyers, { part = b, phase = math.random() * 6.28, r = math.random(8, 22), h = math.random(3, 9), spd = 0.5 + math.random() })
-end
-
 RunService.Heartbeat:Connect(function(dt)
 	for _, cl in clouds do
 		local p = cl.part.Position
@@ -1226,16 +1220,6 @@ RunService.Heartbeat:Connect(function(dt)
 			nx = -3300
 		end
 		cl.part.Position = Vector3.new(nx, p.Y, p.Z)
-	end
-	local char = player.Character
-	local hrp = char and char:FindFirstChild("HumanoidRootPart")
-	if hrp then
-		local base = (hrp :: BasePart).Position
-		local t = os.clock()
-		for _, f in flyers do
-			local a = t * f.spd + f.phase
-			f.part.Position = base + Vector3.new(math.cos(a) * f.r, f.h + math.sin(a * 2) * 2, math.sin(a) * f.r)
-		end
 	end
 end)
 

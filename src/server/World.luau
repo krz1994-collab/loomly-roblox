@@ -252,6 +252,31 @@ function World.build()
 		end
 	end
 
+	-- FORESTS + MOUNTAINS ringing the mainland so it feels like a real island, not an empty field.
+	do
+		local gz = (WorldLayout.GRID_START_Z + gridD) / 2 - 200
+		-- a belt of trees (trunk + leafy canopy)
+		for k = 1, 90 do
+			local a = (k / 90) * math.pi * 2 + (k % 5) * 0.22
+			local r = 2000 + (k % 7) * 120
+			local tx, tz = math.cos(a) * r, gz + math.sin(a) * r
+			local h = 14 + (k % 5) * 4
+			mkPart("Trunk" .. k, Vector3.new(3, h, 3), CFrame.new(tx, h / 2, tz), Color3.fromRGB(105, 75, 50), rootF, Enum.Material.Wood)
+			local leaf = mkPart("Leaves" .. k, Vector3.new(14, 14, 14), CFrame.new(tx, h + 4, tz), Color3.fromRGB(60 + (k % 3) * 20, 140 + (k % 4) * 15, 60), rootF, Enum.Material.Grass)
+			leaf.Shape = Enum.PartType.Ball
+		end
+		-- a ring of mountains further out (big stone cones)
+		for k = 1, 14 do
+			local a = (k / 14) * math.pi * 2
+			local r = 2650
+			local mx, mz = math.cos(a) * r, gz + math.sin(a) * r
+			local mh = 120 + (k % 4) * 40
+			local m = mkPart("Mountain" .. k, Vector3.new(mh * 0.9, mh, mh * 0.9), CFrame.new(mx, mh / 2 - 10, mz), Color3.fromRGB(110, 108, 112), rootF, Enum.Material.Rock)
+			m.Shape = Enum.PartType.Ball -- rounded peak (cheap, reads as a hill/mountain)
+			mkPart("Snow" .. k, Vector3.new(mh * 0.4, mh * 0.3, mh * 0.4), CFrame.new(mx, mh - 10, mz), Color3.fromRGB(240, 245, 250), rootF, Enum.Material.Sand)
+		end
+	end
+
 	-- central plaza (spawn + main shops)
 	mkPart("Plaza", Vector3.new(WorldLayout.PLAZA_RADIUS * 2, 1, WorldLayout.PLAZA_RADIUS * 2), CFrame.new(0, 0.5, WorldLayout.PLAZA_Z), C_PLAZA, rootF)
 	local spawn = Instance.new("SpawnLocation")
@@ -457,7 +482,43 @@ function World.build()
 	end
 
 	-- ocean + 11 islands far out (10 biomes + the Enchanted Forest)
-	mkPart("Ocean", Vector3.new(WorldLayout.ISLAND_RING * 2.6, 2, WorldLayout.ISLAND_RING * 2.6), CFrame.new(0, -4, WorldLayout.MAP_CENTER_Z), Color3.fromRGB(58, 120, 190), rootF, Enum.Material.Water)
+	-- ocean = TILED water (a single part can't exceed 2048 studs -> the old one-part ocean was invalid,
+	-- which is why the map ended in a void). This fills a huge area around the mainland + islands at
+	-- water level, so you're surrounded by sea and reach the islands by boat over it.
+	do
+		local otile = 2000
+		local reach = WorldLayout.ISLAND_RING + 2500
+		local cz = WorldLayout.MAP_CENTER_Z
+		local n = math.ceil((reach * 2) / otile)
+		for ix = 0, n - 1 do
+			for iz = 0, n - 1 do
+				local ox = -reach + ix * otile + otile / 2
+				local oz = cz - reach + iz * otile + otile / 2
+				mkPart("Ocean_" .. ix .. "_" .. iz, Vector3.new(otile, 3, otile), CFrame.new(ox, -4, oz), Color3.fromRGB(58, 120, 190), rootF, Enum.Material.Water)
+			end
+		end
+	end
+	-- a few ships sailing the sea for life (slowly circle between the mainland and the islands)
+	do
+		local ships = {}
+		for k = 1, 5 do
+			local hull = mkPart("Ship" .. k, Vector3.new(18, 8, 40), CFrame.new(0, 2, 0), Color3.fromRGB(120, 85, 55), rootF, Enum.Material.WoodPlanks)
+			local sail = mkPart("Sail" .. k, Vector3.new(2, 26, 22), CFrame.new(0, 18, 0), Color3.fromRGB(235, 235, 240), hull, Enum.Material.Fabric)
+			table.insert(ships, { hull = hull, sail = sail, r = 2600 + k * 250, a = k * 1.25, spd = 0.02 + k * 0.004 })
+		end
+		task.spawn(function()
+			while true do
+				task.wait(0.1)
+				for _, s in ships do
+					s.a += s.spd
+					local x = math.cos(s.a) * s.r
+					local z = WorldLayout.MAP_CENTER_Z + math.sin(s.a) * s.r
+					s.hull.CFrame = CFrame.new(x, 2, z) * CFrame.Angles(0, -s.a + math.pi / 2, 0)
+					s.sail.CFrame = s.hull.CFrame * CFrame.new(0, 16, 0)
+				end
+			end
+		end)
+	end
 	for i = 1, WorldLayout.ISLAND_COUNT do
 		buildIsland(i, WorldLayout.islandCenter(i), rootF)
 	end
