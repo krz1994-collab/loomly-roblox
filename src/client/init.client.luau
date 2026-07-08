@@ -16,6 +16,7 @@ local MapRules = require(ReplicatedStorage.Bloomly.MapRules)
 local WorldLayout = require(ReplicatedStorage.Bloomly.data.WorldLayout)
 local Tutorials = require(ReplicatedStorage.Bloomly.data.Tutorials)
 local Sounds = require(ReplicatedStorage.Bloomly.data.Sounds)
+local Plants = require(ReplicatedStorage.Bloomly.data.Plants)
 
 -- ---- sound: one cached Sound per key, played on demand. Empty ids are silent (safe). ----
 local SoundService = game:GetService("SoundService")
@@ -887,6 +888,84 @@ end
 bagBtn.Activated:Connect(function()
 	bagPanel.Visible = not bagPanel.Visible
 	if bagPanel.Visible then refreshBag() end
+end)
+
+-- ================= CODEX / POKEDEX (block B) =================
+local codexBtn = mkBtn(gui, "📖 Codex", 84, Color3.fromRGB(90, 120, 160))
+codexBtn.Position = UDim2.new(1, -104, 0, 308)
+
+local codexPanel = Instance.new("Frame")
+codexPanel.Size = UDim2.new(0, 460, 0, 460)
+codexPanel.Position = UDim2.new(0.5, -230, 0.5, -230)
+codexPanel.BackgroundColor3 = Color3.fromRGB(26, 32, 44)
+codexPanel.BorderSizePixel = 0
+codexPanel.Visible = false
+codexPanel.ZIndex = 20
+codexPanel.Parent = gui
+do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 10); c.Parent = codexPanel end
+local codexTitle = Instance.new("TextLabel")
+codexTitle.Size = UDim2.new(1, 0, 0, 30)
+codexTitle.BackgroundTransparency = 1
+codexTitle.TextColor3 = Color3.fromRGB(235, 240, 255)
+codexTitle.Font = Enum.Font.GothamBold
+codexTitle.TextSize = 16
+codexTitle.Text = "📖 Codex"
+codexTitle.ZIndex = 21
+codexTitle.Parent = codexPanel
+local codexScroll = Instance.new("ScrollingFrame")
+codexScroll.Size = UDim2.new(1, -16, 1, -76)
+codexScroll.Position = UDim2.new(0, 8, 0, 34)
+codexScroll.BackgroundTransparency = 1
+codexScroll.BorderSizePixel = 0
+codexScroll.ScrollBarThickness = 6
+codexScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+codexScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+codexScroll.ZIndex = 21
+codexScroll.Parent = codexPanel
+local cgl = Instance.new("UIGridLayout"); cgl.CellSize = UDim2.new(0, 100, 0, 60); cgl.CellPadding = UDim2.new(0, 6, 0, 6); cgl.Parent = codexScroll
+local codexClose = mkBtn(codexPanel, "Close", 200, Color3.fromRGB(90, 90, 120))
+codexClose.Position = UDim2.new(0.5, -100, 1, -36)
+codexClose.Size = UDim2.new(0, 200, 0, 30)
+codexClose.ZIndex = 22
+codexClose.Activated:Connect(function() codexPanel.Visible = false end)
+
+local RARE_MUTS = { golden = true, frosted = true, rainbow = true, celestial = true, mythic = true, bloomly = true, giant = true, wet = true }
+
+local function refreshCodex()
+	for _, ch in codexScroll:GetChildren() do
+		if ch:IsA("TextLabel") then ch:Destroy() end
+	end
+	local ok2, codex = pcall(function() return Remotes.GetCodex:InvokeServer() end)
+	if not ok2 or type(codex) ~= "table" then codex = {} end
+	local species: { [string]: boolean } = {}
+	local rares = 0
+	for key in codex do
+		local sp = string.match(key, "^(.-)|")
+		if sp then species[sp] = true end
+		local mut = string.match(key, "|(.+)$")
+		if mut and RARE_MUTS[mut] then rares += 1 end
+	end
+	local total = #Plants.list
+	local found = 0
+	for _, pl in Plants.list do
+		local disc = species[pl.id] == true
+		if disc then found += 1 end
+		local cell = Instance.new("TextLabel")
+		cell.BackgroundColor3 = disc and Color3.fromRGB(50, 80, 60) or Color3.fromRGB(40, 44, 54)
+		cell.TextColor3 = disc and Color3.fromRGB(220, 245, 220) or Color3.fromRGB(120, 122, 130)
+		cell.Font = Enum.Font.GothamMedium
+		cell.TextSize = 13
+		cell.Text = disc and (pl.emoji .. "\n" .. pl.id) or "❓\n???"
+		cell.ZIndex = 22
+		cell.Parent = codexScroll
+		local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 6); c.Parent = cell
+	end
+	codexTitle.Text = string.format("📖 Codex  %d/%d crops (%d%%)  ·  %d rare finds", found, total, math.floor(found / math.max(1, total) * 100), rares)
+end
+
+codexBtn.Activated:Connect(function()
+	codexPanel.Visible = not codexPanel.Visible
+	if codexPanel.Visible then refreshCodex() end
 end)
 
 local ok, view = pcall(function()

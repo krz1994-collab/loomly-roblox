@@ -378,6 +378,12 @@ Remotes.GetState.OnServerInvoke = function(player: Player)
 	return Farm.buildView(state, ownedPlotsFor(player))
 end
 
+-- ---- GetCodex (RemoteFunction) : the player's discovered "plantId|mutationId" set, for the pokedex.
+Remotes.GetCodex.OnServerInvoke = function(player: Player)
+	local state = PlayerData.get(player)
+	return state and state.codex or {}
+end
+
 -- ---- Plant (RemoteEvent, client -> server) --------------------------------------
 -- VALIDATES: arg types; that the plot index is in range; that the plot is EMPTY (not overwriting a
 -- growing crop); that the seed id is real; that the seed is UNLOCKED for this player. All in
