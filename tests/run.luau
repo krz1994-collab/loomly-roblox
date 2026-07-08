@@ -495,6 +495,17 @@ do
 	q3.prereq = "q2" -- now prereq is done
 	check("prereq done but level too low -> unavailable", not QuestRules.isAvailable(q3, st, 4))
 	check("prereq done + level ok -> available", QuestRules.isAvailable(q3, st, 5))
+
+	-- describeStep / describeActive: NPCs must be able to explain a quest in plain words
+	eq("describe plant step", QuestRules.describeStep({ kind = "plant", target = "any", count = 3 }), "Plant 3 crops")
+	eq("describe talk step", QuestRules.describeStep({ kind = "talk", target = "pip", count = 1 }), "Go talk to pip")
+	eq("describe sail step", QuestRules.describeStep({ kind = "sail", target = "3", count = 1 }), "Sail to island 3")
+	eq("describe kill step", QuestRules.describeStep({ kind = "kill", count = 5 }), "Defeat 5 monsters")
+	local sa: any = { xp = 0 }
+	local qd: any = { id = "qd", giver = "x", name = "D", steps = { { kind = "harvest", target = "radish", count = 4 } }, reward = {} }
+	QuestRules.accept(sa, qd)
+	QuestRules.report(sa, { qd }, "harvest", "radish", 1)
+	eq("describeActive shows progress", QuestRules.describeActive(sa, qd), "Harvest 4 crops (1/4)")
 end
 -- data integrity: every quest step uses a known verb; every giver is a real npc-ish id string
 do

@@ -117,7 +117,7 @@ local function makeDefault(): PlayerState
 		weeklyEarned = 0,
 		dayStamp = 0,
 		weekStamp = 0,
-		seeds = {},
+		seeds = { radish = 5 }, -- starter seeds so a brand-new player can plant right away, then buy more
 	}
 end
 

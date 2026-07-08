@@ -111,4 +111,54 @@ function QuestRules.doneCount(state: any): number
 	return n
 end
 
+-- Turn a machine step {kind,target,count} into a human objective an NPC can read aloud, so quests
+-- actually explain themselves ("Plant 3 crops", "Sail to island 3", "Defeat 5 monsters").
+function QuestRules.describeStep(step: any): string
+	local n = step.count or 1
+	local k = step.kind
+	if k == "talk" then
+		return "Go talk to " .. tostring(step.target or "them")
+	elseif k == "sail" then
+		return (step.target and ("Sail to island " .. tostring(step.target))) or "Sail to an island"
+	elseif k == "buy_boat" then
+		return "Buy a boat from the Harbor"
+	end
+	local phrase: { [string]: string } = {
+		plant = "Plant " .. n .. " crops",
+		harvest = "Harvest " .. n .. " crops",
+		harvest_mut = "Harvest " .. n .. " mutated crops",
+		sell = "Sell " .. n .. " items at the Market",
+		fish = "Catch " .. n .. " fish",
+		catch_bug = "Catch " .. n .. " bugs",
+		mine = "Mine " .. n .. " ores",
+		forage = "Forage " .. n .. " items",
+		cook = "Cook " .. n .. " dishes",
+		buy_animal = "Buy " .. n .. " animals",
+		collect_animal = "Collect from animals " .. n .. " times",
+		breed = "Breed " .. n .. " animals",
+		upgrade = "Buy " .. n .. " upgrades",
+		decorate = "Place " .. n .. " decorations",
+		trade = "Trade with " .. n .. " players",
+		buy_vehicle = "Buy a vehicle",
+		find_treasure = "Dig up " .. n .. " treasures",
+		rebirth = "Rebirth " .. n .. " times",
+		donate = "Donate " .. n .. " items to the Museum",
+		buy_pet = "Adopt " .. n .. " pets",
+		kill = "Defeat " .. n .. " monsters",
+		loot = "Collect " .. n .. " monster loot",
+	}
+	return phrase[k] or (k .. " x" .. n)
+end
+
+-- The player's CURRENT objective for an active quest, with live progress ("Plant 3 crops (1/3)").
+function QuestRules.describeActive(state: any, quest: Quest): string
+	local a = ensure(state).active[quest.id]
+	if not a then
+		return QuestRules.describeStep(quest.steps[1])
+	end
+	local step = quest.steps[math.min(a.step, #quest.steps)]
+	local need = step.count or 1
+	return QuestRules.describeStep(step) .. " (" .. (a.prog or 0) .. "/" .. need .. ")"
+end
+
 return QuestRules

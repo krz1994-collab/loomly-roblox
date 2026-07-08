@@ -69,6 +69,48 @@ M.trees = {
 			choices = { { label = "Fascinating", to = "ACT_QUEST" }, { label = "Thanks", to = "ACT_CLOSE" } },
 		},
 	},
+	-- Pip runs the Seed Shop: talking to him lets you actually BUY seeds (opens the buy panel).
+	pip = {
+		start = {
+			text = "Seeds! Every great farm starts right here. Grab a handful and watch your patch come alive.",
+			choices = {
+				{ label = "Buy some seeds 🌱", to = "ACT_SHOP:seeds" },
+				{ label = "Got a job for me?", to = "ACT_QUEST" },
+				{ label = "How does planting work?", to = "tips" },
+				{ label = "Bye 👋", to = "ACT_CLOSE" },
+			},
+		},
+		tips = {
+			text = "Buy seeds here, tap one on your bottom bar to pick it, then press E on a plot to plant. Sell the harvest at Marge's Market!",
+			choices = { { label = "Buy seeds 🌱", to = "ACT_SHOP:seeds" }, { label = "Got it!", to = "ACT_CLOSE" } },
+		},
+	},
+	-- Marge runs the Market: talking to her lets you SELL your whole harvest.
+	marge = {
+		start = {
+			text = "Fresh from the fields? I'll buy the lot at a fair price, dearie!",
+			choices = {
+				{ label = "Sell my whole harvest 🧺", to = "ACT_SELL" },
+				{ label = "Any work going?", to = "ACT_QUEST" },
+				{ label = "Goodbye 👋", to = "ACT_CLOSE" },
+			},
+		},
+	},
+	-- Rusty runs the garage: points you to the vehicle shops + gives the vehicle quest.
+	rusty = {
+		start = {
+			text = "Want to zoom around this big island in style? Bikes, cars, the lot!",
+			choices = {
+				{ label = "Where do I buy a vehicle?", to = "veh" },
+				{ label = "Got a job for me?", to = "ACT_QUEST" },
+				{ label = "Later 👋", to = "ACT_CLOSE" },
+			},
+		},
+		veh = {
+			text = "Grab one at my garage stands by the plaza, or chat to the Car Dealership / Bike Shop in town!",
+			choices = { { label = "Thanks! 👋", to = "ACT_CLOSE" } },
+		},
+	},
 }
 
 function M.get(npcId: string): any

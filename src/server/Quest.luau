@@ -53,6 +53,7 @@ function Quest.talkTo(player: Player, npcId: string): any
 	local level = Rules.levelForXp(state.xp)
 	QuestRules.report(state, Quests.list, "talk", npcId, 1)
 
+	-- 1) turn in a READY quest from this giver (reward applied)
 	for _, q in Quests.forGiver(npcId) do
 		if QuestRules.isReady(state, q) then
 			local reward = QuestRules.turnIn(state, q)
@@ -62,10 +63,17 @@ function Quest.talkTo(player: Player, npcId: string): any
 			end
 		end
 	end
+	-- 2) if a quest from this giver is ACTIVE but not done, REMIND the player what to do
+	for _, q in Quests.forGiver(npcId) do
+		if QuestRules.isActive(state, q.id) then
+			return { action = "active", questName = q.name, objective = QuestRules.describeActive(state, q) }
+		end
+	end
+	-- 3) otherwise ACCEPT the next available quest and EXPLAIN its objective
 	for _, q in Quests.forGiver(npcId) do
 		if QuestRules.isAvailable(q, state, level) then
 			QuestRules.accept(state, q)
-			return { action = "accept", questName = q.name }
+			return { action = "accept", questName = q.name, objective = QuestRules.describeStep(q.steps[1]) }
 		end
 	end
 	return { action = "chat" }

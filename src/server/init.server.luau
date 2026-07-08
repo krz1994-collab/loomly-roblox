@@ -633,13 +633,57 @@ local CITY_LINE: { [string]: string } = {
 	Hotel = "Travelling far to the islands? Rest up here, we've got the comfiest beds. 🏨",
 	["Town Hall"] = "Welcome to Bloomly! We're proud of our little town. Enjoy your stay. 🏛️",
 }
+-- FUNCTIONAL city shops: which civic buildings actually DO something when you talk (buy/sell/etc.).
+local CITY_SHOP: { [string]: string } = {
+	["Car Dealership"] = "vehicles",
+	["Bike Shop"] = "vehicles",
+	Grocery = "sell",
+	Bank = "bank",
+}
+-- Vehicle buy list, as dialogue choices (owned ones show a tick, the rest an ACT_BUYVEH buy action).
+local function vehicleChoices(state: any): { any }
+	local out = {}
+	for _, v in Catalog.Vehicles do
+		if state and state.vehicle == v.id then
+			table.insert(out, { label = v.emoji .. " " .. v.name .. " — owned ✓", to = "ACT_CLOSE" })
+		else
+			table.insert(out, { label = v.emoji .. " Buy " .. v.name .. " (" .. v.cost .. "c)", to = "ACT_BUYVEH:" .. v.id })
+		end
+	end
+	table.insert(out, { label = "Maybe later 👋", to = "ACT_CLOSE" })
+	return out
+end
+-- Build a city shopkeeper's dialogue node for a token (start / shop / about). Shops actually work.
+local function cityNode(emoji: string, name: string, token: string, state: any): any
+	local kind = CITY_SHOP[name]
+	if token == "shop" and kind == "vehicles" then
+		return { text = "Take your pick — best wheels in Bloomly! You've got " .. ((state and state.coins) or 0) .. "c.", choices = vehicleChoices(state) }
+	elseif token == "about" then
+		if kind == "bank" then
+			return { text = "You've got " .. ((state and state.coins) or 0) .. " coins to your name. Keep farming and that number will soar! 💰", choices = { { label = "Thanks! 👋", to = "ACT_CLOSE" } } }
+		end
+		return { text = CITY_LINE[name] or ("The " .. name .. " is one of Bloomly town's proud little spots."), choices = { { label = "Good to know! 👋", to = "ACT_CLOSE" } } }
+	end
+	-- start node
+	local choices = {}
+	if kind == "vehicles" then
+		table.insert(choices, { label = "Show me your vehicles 🚗", to = "shop" })
+	elseif kind == "sell" then
+		table.insert(choices, { label = "Sell my harvest here 🧺", to = "ACT_SELL" })
+	elseif kind == "bank" then
+		table.insert(choices, { label = "Check my balance 💰", to = "about" })
+	end
+	table.insert(choices, { label = "Tell me about this place", to = "about" })
+	table.insert(choices, { label = "Goodbye 👋", to = "ACT_CLOSE" })
+	return { text = "Welcome to the " .. name .. "! " .. emoji, choices = choices }
+end
 local function sendDialogue(player: Player, npcId: string, token: string)
-	-- city greeter NPCs (id "city:<emoji>:<name>") aren't in Npcs.list -> give them a friendly generic line
+	-- city shopkeeper NPCs (id "city:<emoji>:<name>") aren't in Npcs.list -> functional shop dialogue
 	if string.sub(npcId, 1, 5) == "city:" then
 		local emoji, name = string.match(npcId, "^city:(.-):(.+)$")
 		if emoji and name then
-			local line = CITY_LINE[name] or ("Welcome to the " .. name .. "! Lovely to see you in town. 😊")
-			Remotes.DialogueOpen:FireClient(player, { npcId = npcId, name = name, emoji = emoji, text = "Hi there! " .. line, choices = { { label = "Thanks! 👋", to = "ACT_CLOSE" } } })
+			local node = cityNode(emoji, name, token, PlayerData.get(player))
+			Remotes.DialogueOpen:FireClient(player, { npcId = npcId, name = name, emoji = emoji, text = node.text, choices = node.choices })
 		end
 		return
 	end
@@ -651,22 +695,73 @@ local function sendDialogue(player: Player, npcId: string, token: string)
 	Remotes.DialogueOpen:FireClient(player, { npcId = npcId, name = npc.name, emoji = npc.emoji, text = node.text, choices = node.choices })
 end
 
+-- Send a plain talking node from a specific NPC (used for quest accept/complete/reminder screens).
+local function sayFrom(player: Player, npcId: string, text: string, btn: string)
+	local npc = npcById(npcId)
+	Remotes.DialogueOpen:FireClient(player, {
+		npcId = npcId,
+		name = npc and npc.name or npcId,
+		emoji = npc and npc.emoji or "🌱",
+		text = text,
+		choices = { { label = btn, to = "ACT_CLOSE" } },
+	})
+end
+
 Remotes.DialoguePick.OnServerEvent:Connect(function(player: Player, npcId: any, token: any)
 	if type(npcId) ~= "string" or type(token) ~= "string" then
 		return
 	end
+	local state = PlayerData.get(player)
 	if token == "ACT_CLOSE" then
 		Remotes.DialogueOpen:FireClient(player, nil)
 	elseif token == "ACT_QUEST" then
+		-- accept / turn in / remind -- and EXPLAIN the objective right in the dialogue
 		local res = Quest.talkTo(player, npcId)
-		if res.action == "accept" then
-			Remotes.Notify:FireClient(player, "📜 New quest: " .. res.questName)
-		elseif res.action == "complete" then
-			Remotes.Notify:FireClient(player, "✅ Quest complete: " .. res.questName .. "!")
-		else
-			Remotes.Notify:FireClient(player, "Nothing new right now, come back later!")
-		end
 		pushState(player)
+		if res.action == "accept" then
+			sayFrom(player, npcId, "📜 New quest: " .. res.questName .. "!\n👉 " .. (res.objective or "") .. "\nCome back to me when it's done.", "I'm on it! 💪")
+		elseif res.action == "active" then
+			sayFrom(player, npcId, 'You\'re still working on "' .. res.questName .. '".\n👉 ' .. (res.objective or "") .. "\nFinish that and come see me!", "Okay! 👋")
+		elseif res.action == "complete" then
+			sayFrom(player, npcId, "✅ Quest complete: " .. res.questName .. "!\nHere's your reward — nicely done! 🎉", "Thank you! 🎉")
+		else
+			sayFrom(player, npcId, "No new work for you right now — come back after you've levelled up a bit!", "Will do! 👋")
+		end
+	elseif token == "ACT_SELL" then
+		if state then
+			local sold = 0
+			for _, qn in state.inventory do
+				sold += qn
+			end
+			if Farm.sellAll(state) then
+				Quest.report(player, "sell", nil, sold)
+				pushState(player)
+				Remotes.Notify:FireClient(player, "🧺 Sold your harvest!")
+			else
+				Remotes.Notify:FireClient(player, "Nothing to sell yet — go harvest some crops!")
+			end
+		end
+		Remotes.DialogueOpen:FireClient(player, nil)
+	elseif string.sub(token, 1, 11) == "ACT_BUYVEH:" then
+		local vid = string.sub(token, 12)
+		local veh = vehicleById(vid)
+		if state and veh then
+			if state.vehicle == vid then
+				Remotes.Notify:FireClient(player, "You already own the " .. veh.name .. "!")
+			elseif state.coins >= veh.cost then
+				state.coins -= veh.cost
+				state.vehicle = vid
+				applyVehicleSpeed(player)
+				Quest.report(player, "buy_vehicle", vid, 1)
+				pushState(player)
+				Remotes.Notify:FireClient(player, "🚗 You bought the " .. veh.name .. "! Zoom zoom!")
+			else
+				Remotes.Notify:FireClient(player, "Not enough coins for the " .. veh.name .. " (" .. veh.cost .. "c).")
+			end
+		end
+		sendDialogue(player, npcId, "shop") -- stay in the vehicle shop so you can buy more / see what you own
+	elseif string.sub(token, 1, 9) == "ACT_SHOP:" then
+		Remotes.OpenShop:FireClient(player, string.sub(token, 10))
 		Remotes.DialogueOpen:FireClient(player, nil)
 	else
 		sendDialogue(player, npcId, token)
