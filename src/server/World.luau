@@ -521,6 +521,44 @@ function World.build()
 			local r = 2360
 			mkGather("TownPond" .. k, math.cos(a) * r, math.sin(a) * r, Vector3.new(26, 2, 26), Color3.fromRGB(70, 130, 200), Enum.Material.Water, "Fish", "fish", "fish", "🎣 Fishing Spot", rootF)
 		end
+
+		-- PARKS + GREENERY (Adam: "parki, lasy" w srodku): tree clusters + flower beds woven through the
+		-- town (in the gaps between the civic buildings) so the centre has green parks, not just concrete.
+		local function mkTree(tx: number, tz: number, tag: string)
+			local h = 12 + (math.abs(tx + tz) % 6)
+			mkPart("PkTrunk" .. tag, Vector3.new(2.6, h, 2.6), CFrame.new(tx, h / 2, tz), Color3.fromRGB(105, 75, 50), rootF, Enum.Material.Wood)
+			local leaf = mkPart("PkLeaf" .. tag, Vector3.new(12, 12, 12), CFrame.new(tx, h + 3, tz), Color3.fromRGB(70, 150, 70), rootF, Enum.Material.Grass)
+			leaf.Shape = Enum.PartType.Ball
+		end
+		local FLOWER = { Color3.fromRGB(240, 120, 150), Color3.fromRGB(250, 210, 90), Color3.fromRGB(180, 130, 230), Color3.fromRGB(240, 150, 90) }
+		local nB = #City.buildings
+		for g = 1, nB do -- one little park in each gap between two neighbouring buildings
+			local a = (g - 0.5) / nB * math.pi * 2 + 0.2
+			local r = 460
+			local px, pz = math.cos(a) * r, math.sin(a) * r
+			-- a small grassy park pad + a cluster of trees + a ring of flowers
+			mkPart("ParkPad" .. g, Vector3.new(34, 0.6, 34), CFrame.new(px, 0.35, pz), Color3.fromRGB(96, 170, 84), rootF, Enum.Material.Grass)
+			for c = 0, 2 do
+				local ca = a + (c - 1) * 0.16
+				mkTree(math.cos(ca) * (r + (c - 1) * 8), math.sin(ca) * (r + (c - 1) * 8), g .. "_" .. c)
+			end
+			for f = 0, 5 do
+				local fa = f / 6 * math.pi * 2
+				local fl = mkPart("PkFlower" .. g .. "_" .. f, Vector3.new(1, 2.4, 1), CFrame.new(px + math.cos(fa) * 13, 1.4, pz + math.sin(fa) * 13), FLOWER[(f % 4) + 1], rootF, Enum.Material.Neon)
+				fl.Shape = Enum.PartType.Ball
+			end
+		end
+		-- a couple of bigger tree groves ("lasy") in the wider gaps out between the farm rings
+		for g = 1, 8 do
+			local a = g / 8 * math.pi * 2 + 0.9
+			local r = 900 + (g % 3) * 360 -- lands in a road gap between plot rings
+			local gx, gz = math.cos(a) * r, math.sin(a) * r
+			for c = 1, 5 do
+				local ca = a + (c - 3) * 0.06
+				local cr = r + (c - 3) * 10
+				mkTree(math.cos(ca) * cr, math.sin(ca) * cr, "grove" .. g .. "_" .. c)
+			end
+		end
 	end
 
 	-- the 100 personal plots
