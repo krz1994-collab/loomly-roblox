@@ -646,7 +646,7 @@ local DOT = {
 	island = Color3.fromRGB(230, 200, 120),
 	city = Color3.fromRGB(220, 160, 210),
 	you = Color3.fromRGB(255, 90, 90),
-	farm = Color3.fromRGB(120, 255, 160),
+	farm = Color3.fromRGB(250, 250, 250), -- WHITE: distinct from the green Town Centre dot
 }
 -- legend rows for the full map (colour -> what it marks)
 local LEGEND = {
