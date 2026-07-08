@@ -498,7 +498,7 @@ do
 end
 -- data integrity: every quest step uses a known verb; every giver is a real npc-ish id string
 do
-	local verbs = { talk = true, plant = true, harvest = true, harvest_mut = true, sell = true, fish = true, catch_bug = true, mine = true, forage = true, cook = true, buy_animal = true, collect_animal = true, breed = true, upgrade = true, decorate = true, trade = true, sail = true, buy_vehicle = true, buy_boat = true, find_treasure = true, rebirth = true }
+	local verbs = { talk = true, plant = true, harvest = true, harvest_mut = true, sell = true, fish = true, catch_bug = true, mine = true, forage = true, cook = true, buy_animal = true, collect_animal = true, breed = true, upgrade = true, decorate = true, trade = true, sail = true, buy_vehicle = true, buy_boat = true, find_treasure = true, rebirth = true, kill = true, loot = true, donate = true, buy_pet = true }
 	local ok, ids = true, {}
 	for _, quest in Quests.list do
 		if type(quest.id) ~= "string" or ids[quest.id] then
