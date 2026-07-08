@@ -519,6 +519,55 @@ function World.build()
 			end
 		end)
 	end
+
+	-- SKY LIFE: balloons + planes + a flock of birds, all circling over the map so lots is happening.
+	-- Built from several parts each (balloons are balls, planes have wings+tail) so they read properly,
+	-- not as flat squares.
+	do
+		local cz = WorldLayout.MAP_CENTER_Z
+		local sky: { any } = {}
+		local balloonCol = { Color3.fromRGB(230, 80, 80), Color3.fromRGB(80, 160, 230), Color3.fromRGB(240, 200, 70), Color3.fromRGB(120, 210, 120), Color3.fromRGB(230, 130, 220) }
+		for k = 1, 5 do
+			local balloon = mkPart("Balloon" .. k, Vector3.new(30, 36, 30), CFrame.new(0, 300, 0), balloonCol[k], rootF, Enum.Material.SmoothPlastic)
+			balloon.Shape = Enum.PartType.Ball
+			local basket = mkPart("Basket" .. k, Vector3.new(9, 8, 9), CFrame.new(0, 260, 0), Color3.fromRGB(120, 85, 55), rootF, Enum.Material.WoodPlanks)
+			table.insert(sky, { root = balloon, b = basket, kind = "balloon", a = k * 1.3, r = 1400 + k * 260, base = 250 + k * 18, spd = 0.008 + k * 0.0015 })
+		end
+		for k = 1, 3 do
+			local body = mkPart("Plane" .. k, Vector3.new(6, 5, 34), CFrame.new(0, 340, 0), Color3.fromRGB(225, 225, 235), rootF, Enum.Material.Metal)
+			local wing = mkPart("Wing" .. k, Vector3.new(46, 1.6, 9), CFrame.new(0, 340, 0), Color3.fromRGB(200, 200, 212), rootF, Enum.Material.Metal)
+			local tail = mkPart("Tail" .. k, Vector3.new(1.6, 10, 6), CFrame.new(0, 344, 0), Color3.fromRGB(210, 70, 70), rootF, Enum.Material.Metal)
+			table.insert(sky, { root = body, w = wing, tl = tail, kind = "plane", a = k * 2.1, r = 2100 + k * 220, base = 330 + k * 16, spd = 0.02 + k * 0.003 })
+		end
+		for k = 1, 12 do
+			local bird = mkPart("Bird" .. k, Vector3.new(2.4, 1, 3), CFrame.new(0, 150, 0), Color3.fromRGB(40, 40, 46), rootF, Enum.Material.SmoothPlastic)
+			local wings = mkPart("BW" .. k, Vector3.new(7, 0.4, 2.2), CFrame.new(0, 150, 0), Color3.fromRGB(45, 45, 52), rootF, Enum.Material.SmoothPlastic)
+			table.insert(sky, { root = bird, w = wings, kind = "bird", a = (k / 12) * math.pi * 2, r = 800 + (k % 3) * 60, base = 150, spd = 0.03, off = k * 0.5 })
+		end
+		task.spawn(function()
+			while true do
+				task.wait(0.08)
+				local t = os.clock()
+				for _, o in sky do
+					o.a += o.spd
+					local x = math.cos(o.a) * o.r
+					local z = cz + math.sin(o.a) * o.r
+					local y = o.base + math.sin(t * 0.6 + (o.off or 0)) * 6
+					local cf = CFrame.new(x, y, z) * CFrame.Angles(0, -o.a + math.pi / 2, 0)
+					o.root.CFrame = cf
+					if o.b then
+						o.b.CFrame = cf * CFrame.new(0, -22, 0) -- balloon basket hangs below
+					end
+					if o.w then
+						o.w.CFrame = cf -- wings centred on the body
+					end
+					if o.tl then
+						o.tl.CFrame = cf * CFrame.new(0, 4, -15) -- plane tail
+					end
+				end
+			end
+		end)
+	end
 	for i = 1, WorldLayout.ISLAND_COUNT do
 		buildIsland(i, WorldLayout.islandCenter(i), rootF)
 	end
