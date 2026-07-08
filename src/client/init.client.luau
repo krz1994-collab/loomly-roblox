@@ -768,8 +768,15 @@ local function buildMap(sz: number, withLabels: boolean): (Frame, Frame, Frame)
 end
 
 local miniMap, miniYou, miniFarm = buildMap(150, false)
-miniMap.Position = UDim2.new(0, 12, 1, -162)
 miniMap.Parent = gui
+miniMap.Active = false -- never intercept touches (so it can't block the movement thumbstick)
+if isTouchDevice then
+	-- on phones the bottom-left is the movement thumbstick + it's cramped: hide the always-on minimap
+	-- (the full map is one tap away on the 🗺️ Map button) so you can actually walk + the HUD is cleaner
+	miniMap.Visible = false
+else
+	miniMap.Position = UDim2.new(0, 12, 1, -162) -- desktop: bottom-left corner (no thumbstick there)
+end
 
 local fullMap, fullYou, fullFarm = buildMap(420, true)
 fullMap.Position = UDim2.new(0.5, -210, 0.5, -210)
