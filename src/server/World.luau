@@ -85,6 +85,23 @@ local function mkPrompt(parent: BasePart, action: string, kind: string): Proximi
 	return prompt
 end
 
+-- A little sparkle emitter for juice (ready crops, treasure chests). Uses the engine's default
+-- particle texture so no external asset is needed.
+local function mkSparkle(parent: BasePart, color: Color3, rate: number): ParticleEmitter
+	local pe = Instance.new("ParticleEmitter")
+	pe.Color = ColorSequence.new(color)
+	pe.Size = NumberSequence.new(0.7)
+	pe.Transparency = NumberSequence.new(0.2)
+	pe.Lifetime = NumberRange.new(0.5, 1.0)
+	pe.Rate = rate
+	pe.Speed = NumberRange.new(1, 3)
+	pe.SpreadAngle = Vector2.new(180, 180)
+	pe.LightEmission = 0.7
+	pe.Rotation = NumberRange.new(0, 360)
+	pe.Parent = parent
+	return pe
+end
+
 local function mkLamppost(x: number, z: number, parent: Instance)
 	mkPart("LampPost", Vector3.new(1.2, 22, 1.2), CFrame.new(x, 11, z), Color3.fromRGB(60, 55, 50), parent)
 	local head = mkPart("LampHead", Vector3.new(3, 3, 3), CFrame.new(x, 22.5, z), C_LAMP, parent, Enum.Material.Neon)
@@ -294,6 +311,26 @@ function World.build()
 	mkLamppost(-WorldLayout.PLAZA_RADIUS, WorldLayout.PLAZA_Z, rootF)
 	mkLamppost(WorldLayout.PLAZA_RADIUS, WorldLayout.PLAZA_Z, rootF)
 
+	-- plaza centrepiece: a little fountain with a water spray, + rings of flowers for life
+	do
+		local fx = -14
+		local base = mkPart("Fountain", Vector3.new(16, 2, 16), CFrame.new(fx, 1, WorldLayout.PLAZA_Z + 60), Color3.fromRGB(160, 170, 185), rootF, Enum.Material.Marble)
+		base.Shape = Enum.PartType.Cylinder
+		base.Orientation = Vector3.new(0, 0, 90)
+		local spout = mkPart("FountainSpout", Vector3.new(3, 8, 3), CFrame.new(fx, 5, WorldLayout.PLAZA_Z + 60), Color3.fromRGB(120, 190, 230), rootF, Enum.Material.Neon)
+		local water = mkSparkle(spout, Color3.fromRGB(150, 210, 255), 30)
+		water.Speed = NumberRange.new(6, 10)
+		water.Lifetime = NumberRange.new(0.8, 1.4)
+		water.SpreadAngle = Vector2.new(35, 35)
+		local FLOWER = { Color3.fromRGB(240, 120, 150), Color3.fromRGB(250, 210, 90), Color3.fromRGB(180, 130, 230), Color3.fromRGB(240, 150, 90) }
+		for k = 0, 17 do
+			local a = k / 18 * math.pi * 2
+			local r = WorldLayout.PLAZA_RADIUS - 8
+			local fl = mkPart("Flower", Vector3.new(1.2, 3, 1.2), CFrame.new(math.cos(a) * r, 1.5, WorldLayout.PLAZA_Z + math.sin(a) * r), FLOWER[(k % 4) + 1], rootF, Enum.Material.Neon)
+			fl.Shape = Enum.PartType.Ball
+		end
+	end
+
 	-- the 100 personal plots
 	local half = WorldLayout.SECTION_SIZE / 2
 	local padY = 1.1
@@ -356,7 +393,9 @@ function World.build()
 			glow.Range = 12
 			glow.Brightness = 0
 			glow.Parent = crop
-			pads[j] = { pad = pad, prompt = prompt, cropLabel = mkBillboard(pad, 4, 2.4, 4), crop = crop, glow = glow, cropY = padY }
+			local sparkle = mkSparkle(crop, Color3.fromRGB(255, 245, 170), 14)
+			sparkle.Enabled = false -- only sparkles when ready to harvest
+			pads[j] = { pad = pad, prompt = prompt, cropLabel = mkBillboard(pad, 4, 2.4, 4), crop = crop, glow = glow, sparkle = sparkle, cropY = padY }
 		end
 
 		-- a lamppost at the plot's front-left corner (lines the streets)
@@ -451,6 +490,7 @@ function World.build()
 				pr:SetAttribute("tid", "t_" .. seed .. "_" .. k)
 				pr:SetAttribute("tier", tier)
 				pr.MaxActivationDistance = 8
+				mkSparkle(chest, Color3.fromRGB(255, 235, 120), 10) -- glittering so you can spot it
 				mkBillboard(chest, 4, 1.4, 3).Text = "💰"
 			end
 		end
@@ -490,6 +530,9 @@ function World.renderSection(section: number, ownerName: string, view: any)
 			if pad.glow then
 				pad.glow.Brightness = readyGlow and 2.2 or 0
 			end
+			if pad.sparkle then
+				pad.sparkle.Enabled = readyGlow
+			end
 		end
 		local function hideCrop()
 			if pad.crop then
@@ -497,6 +540,9 @@ function World.renderSection(section: number, ownerName: string, view: any)
 			end
 			if pad.glow then
 				pad.glow.Brightness = 0
+			end
+			if pad.sparkle then
+				pad.sparkle.Enabled = false
 			end
 		end
 
@@ -544,6 +590,9 @@ function World.clearSection(section: number)
 		end
 		if pad.glow then
 			pad.glow.Brightness = 0
+		end
+		if pad.sparkle then
+			pad.sparkle.Enabled = false
 		end
 	end
 end
