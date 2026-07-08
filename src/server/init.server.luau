@@ -21,6 +21,8 @@ local WorldLayout = require(ReplicatedStorage.Bloomly.data.WorldLayout)
 local Catalog = require(ReplicatedStorage.Bloomly.data.Catalog)
 local Plants = require(ReplicatedStorage.Bloomly.data.Plants)
 local Monsters = require(ReplicatedStorage.Bloomly.data.Monsters)
+local Dialogues = require(ReplicatedStorage.Bloomly.data.Dialogues)
+local Npcs = require(ReplicatedStorage.Bloomly.data.Npcs)
 local UpgradeRules = require(ReplicatedStorage.Bloomly.UpgradeRules)
 local Upgrades = require(ReplicatedStorage.Bloomly.data.Upgrades)
 local GatherRules = require(ReplicatedStorage.Bloomly.GatherRules)
@@ -586,6 +588,63 @@ local function respawnMonster(model: Model, mdef: any)
 	setMonsterVisible(model, true)
 end
 
+-- ---- branching dialogue (RPG block 1) ----
+local function npcById(id: string): any
+	for _, n in Npcs.list do
+		if n.id == id then
+			return n
+		end
+	end
+	return nil
+end
+-- Resolve a token to a node: custom tree node, else a generic node built from the NPC's greet/idle.
+local function dialogueNode(npcId: string, token: string): any
+	local tree = Dialogues.get(npcId)
+	if tree and tree[token] then
+		return tree[token]
+	end
+	local npc = npcById(npcId)
+	if not npc then
+		return nil
+	end
+	if token == "start" then
+		return { text = npc.greet, choices = { { label = "Do you have work for me?", to = "ACT_QUEST" }, { label = "Tell me more", to = "G_lore" }, { label = "Goodbye", to = "ACT_CLOSE" } } }
+	elseif token == "G_lore" then
+		return { text = npc.idle, choices = { { label = "Any work then?", to = "ACT_QUEST" }, { label = "Goodbye", to = "ACT_CLOSE" } } }
+	end
+	return nil
+end
+local function sendDialogue(player: Player, npcId: string, token: string)
+	local node = dialogueNode(npcId, token)
+	local npc = npcById(npcId)
+	if not node or not npc then
+		return
+	end
+	Remotes.DialogueOpen:FireClient(player, { npcId = npcId, name = npc.name, emoji = npc.emoji, text = node.text, choices = node.choices })
+end
+
+Remotes.DialoguePick.OnServerEvent:Connect(function(player: Player, npcId: any, token: any)
+	if type(npcId) ~= "string" or type(token) ~= "string" then
+		return
+	end
+	if token == "ACT_CLOSE" then
+		Remotes.DialogueOpen:FireClient(player, nil)
+	elseif token == "ACT_QUEST" then
+		local res = Quest.talkTo(player, npcId)
+		if res.action == "accept" then
+			Remotes.Notify:FireClient(player, "📜 New quest: " .. res.questName)
+		elseif res.action == "complete" then
+			Remotes.Notify:FireClient(player, "✅ Quest complete: " .. res.questName .. "!")
+		else
+			Remotes.Notify:FireClient(player, "Nothing new right now, come back later!")
+		end
+		pushState(player)
+		Remotes.DialogueOpen:FireClient(player, nil)
+	else
+		sendDialogue(player, npcId, token)
+	end
+end)
+
 -- ---- ProximityPrompt interactions (the 3D world's intents) ----------------------
 -- Walking up to a plot pad or the market and pressing the prompt fires this ON THE SERVER with the
 -- triggering player. We read the prompt's attributes, re-check the actor OWNS the targeted section,
@@ -613,13 +672,7 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt,
 	if kind == "talk" then
 		local npcId = prompt:GetAttribute("npc")
 		if type(npcId) == "string" then
-			local res = Quest.talkTo(player, npcId)
-			if res.action == "accept" then
-				Remotes.Notify:FireClient(player, "📜 New quest: " .. res.questName)
-			elseif res.action == "complete" then
-				Remotes.Notify:FireClient(player, "✅ Quest complete: " .. res.questName .. "!")
-			end
-			pushState(player)
+			sendDialogue(player, npcId, "start") -- opens the branching dialogue; the "work?" choice runs the quest
 		end
 	elseif kind == "sell" then
 		local sold = 0

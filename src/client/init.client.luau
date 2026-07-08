@@ -1144,6 +1144,75 @@ afterRender = function()
 	if bagPanel.Visible then refreshBag() end
 end
 
+-- ================= DIALOGUE (RPG block 1) =================
+local dlg = Instance.new("Frame")
+dlg.Size = UDim2.new(0, 720, 0, 210)
+dlg.Position = UDim2.new(0.5, -360, 1, -320)
+dlg.BackgroundColor3 = Color3.fromRGB(22, 24, 34)
+dlg.BackgroundTransparency = 0.05
+dlg.BorderSizePixel = 0
+dlg.Visible = false
+dlg.ZIndex = 40
+dlg.Parent = gui
+do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 12); c.Parent = dlg end
+local dlgName = Instance.new("TextLabel")
+dlgName.Size = UDim2.new(1, -16, 0, 26)
+dlgName.Position = UDim2.new(0, 12, 0, 6)
+dlgName.BackgroundTransparency = 1
+dlgName.TextXAlignment = Enum.TextXAlignment.Left
+dlgName.TextColor3 = Color3.fromRGB(255, 235, 150)
+dlgName.Font = Enum.Font.GothamBold
+dlgName.TextSize = 18
+dlgName.ZIndex = 41
+dlgName.Parent = dlg
+local dlgText = Instance.new("TextLabel")
+dlgText.Size = UDim2.new(1, -24, 0, 60)
+dlgText.Position = UDim2.new(0, 12, 0, 32)
+dlgText.BackgroundTransparency = 1
+dlgText.TextXAlignment = Enum.TextXAlignment.Left
+dlgText.TextYAlignment = Enum.TextYAlignment.Top
+dlgText.TextWrapped = true
+dlgText.TextColor3 = Color3.fromRGB(235, 238, 245)
+dlgText.Font = Enum.Font.Gotham
+dlgText.TextSize = 15
+dlgText.ZIndex = 41
+dlgText.Parent = dlg
+local dlgChoices = Instance.new("Frame")
+dlgChoices.Size = UDim2.new(1, -24, 0, 100)
+dlgChoices.Position = UDim2.new(0, 12, 0, 100)
+dlgChoices.BackgroundTransparency = 1
+dlgChoices.ZIndex = 41
+dlgChoices.Parent = dlg
+local dcl = Instance.new("UIListLayout"); dcl.Padding = UDim.new(0, 4); dcl.Parent = dlgChoices
+local dlgNpc: string? = nil
+
+Remotes.DialogueOpen.OnClientEvent:Connect(function(data: any)
+	if not data then
+		dlg.Visible = false
+		return
+	end
+	dlgNpc = data.npcId
+	dlgName.Text = (data.emoji or "") .. " " .. tostring(data.name)
+	dlgText.Text = tostring(data.text)
+	for _, ch in dlgChoices:GetChildren() do
+		if ch:IsA("TextButton") then ch:Destroy() end
+	end
+	for _, c in data.choices do
+		local b = mkBtn(dlgChoices, c.label, 690, Color3.fromRGB(60, 80, 130))
+		b.Size = UDim2.new(1, 0, 0, 28)
+		b.TextXAlignment = Enum.TextXAlignment.Left
+		b.ZIndex = 42
+		local token = c.to
+		b.Activated:Connect(function()
+			if dlgNpc then
+				Remotes.DialoguePick:FireServer(dlgNpc, token)
+			end
+		end)
+	end
+	dlg.Visible = true
+	playSound("click")
+end)
+
 local ok, view = pcall(function()
 	return Remotes.GetState:InvokeServer()
 end)
