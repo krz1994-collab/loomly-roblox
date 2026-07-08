@@ -592,6 +592,47 @@ function World.build()
 			end
 		end)
 	end
+
+	-- SEA LIFE: fish circling near the shore that occasionally leap out of the water, + a ring of foam
+	-- "waves" that bob at the shoreline so the sea feels alive.
+	do
+		local cz = WorldLayout.MAP_CENTER_Z
+		local fishCol = { Color3.fromRGB(120, 165, 205), Color3.fromRGB(230, 150, 90), Color3.fromRGB(200, 210, 120), Color3.fromRGB(180, 130, 210) }
+		local fish = {}
+		for k = 1, 18 do
+			local f = mkPart("Fish" .. k, Vector3.new(2, 1.2, 4.2), CFrame.new(0, -2, 0), fishCol[(k % 4) + 1], rootF, Enum.Material.SmoothPlastic)
+			table.insert(fish, { part = f, a = (k / 18) * math.pi * 2, r = 1950 + (k % 5) * 120, spd = 0.02 + (k % 3) * 0.006, jp = k * 0.35 })
+		end
+		local foam = {}
+		for k = 1, 20 do
+			local a = (k / 20) * math.pi * 2
+			local r = 1850
+			local fm = mkPart("Foam" .. k, Vector3.new(120, 1.5, 30), CFrame.new(math.cos(a) * r, -2.4, cz + math.sin(a) * r) * CFrame.Angles(0, -a, 0), Color3.fromRGB(225, 240, 250), rootF, Enum.Material.Foil)
+			fm.Transparency = 0.35
+			table.insert(foam, { part = fm, base = -2.4, off = k * 0.6 })
+		end
+		task.spawn(function()
+			while true do
+				task.wait(0.08)
+				local t = os.clock()
+				for _, fo in fish do
+					fo.a += fo.spd
+					local x = math.cos(fo.a) * fo.r
+					local z = cz + math.sin(fo.a) * fo.r
+					local phase = (t * 0.5 + fo.jp * 6) % 6.5
+					local y, tilt = -2, 0
+					if phase < 1.1 then -- a leap out of the water
+						y = -2 + math.sin(phase / 1.1 * math.pi) * 7
+						tilt = math.cos(phase / 1.1 * math.pi) * 0.7
+					end
+					fo.part.CFrame = CFrame.new(x, y, z) * CFrame.Angles(tilt, -fo.a + math.pi / 2, 0)
+				end
+				for _, fm in foam do
+					fm.part.Position = Vector3.new(fm.part.Position.X, fm.base + math.sin(t * 1.2 + fm.off) * 0.9, fm.part.Position.Z)
+				end
+			end
+		end)
+	end
 	for i = 1, WorldLayout.ISLAND_COUNT do
 		buildIsland(i, WorldLayout.islandCenter(i), rootF)
 	end
