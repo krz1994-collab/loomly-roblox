@@ -140,12 +140,20 @@ function Farm.plant(state: PlayerState, seedId: string, plotIndex: number, owned
 	if not Plants.isUnlocked(plant, state, ownedPlots) then
 		return false, "locked"
 	end
-	-- SEED COST (coin sink). The server charges plant.cost and refuses if the player can't afford it.
-	-- The client never touches coins -- it only asks to plant. This is what makes the loop an economy.
-	if state.coins < plant.cost then
-		return false, "too_poor"
+	-- Seeds: if you bought this seed at the Seed Shop you plant it from STOCK (free); otherwise you pay
+	-- the coin cost per plant (a fallback so you can always plant even with no stock). The server owns
+	-- both paths; the client only asks to plant.
+	if state.seeds and (state.seeds[seedId] or 0) > 0 then
+		state.seeds[seedId] -= 1
+		if state.seeds[seedId] <= 0 then
+			state.seeds[seedId] = nil
+		end
+	else
+		if state.coins < plant.cost then
+			return false, "too_poor"
+		end
+		state.coins -= plant.cost
 	end
-	state.coins -= plant.cost
 	plot.seedId = seedId
 	-- grow time shrinks with the Fast-Growth upgrade, an active "grow" event (Time Storm ×4 etc.), and
 	-- an equipped grow pet
@@ -260,6 +268,7 @@ function Farm.buildView(state: PlayerState, ownedPlots: number)
 			growSeconds = math.floor(plant.growMs / 1000),
 			unlocked = Plants.isUnlocked(plant, state, ownedPlots),
 			affordable = state.coins >= plant.cost, -- client greys out what you can't afford
+			owned = (state.seeds and state.seeds[plant.id]) or 0, -- seed stock bought at the shop
 		})
 	end
 

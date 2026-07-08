@@ -19,6 +19,7 @@ local PlotRules = require(ReplicatedStorage.Bloomly.PlotRules)
 local Rules = require(ReplicatedStorage.Bloomly.Rules)
 local WorldLayout = require(ReplicatedStorage.Bloomly.data.WorldLayout)
 local Catalog = require(ReplicatedStorage.Bloomly.data.Catalog)
+local Plants = require(ReplicatedStorage.Bloomly.data.Plants)
 local UpgradeRules = require(ReplicatedStorage.Bloomly.UpgradeRules)
 local Upgrades = require(ReplicatedStorage.Bloomly.data.Upgrades)
 local GatherRules = require(ReplicatedStorage.Bloomly.GatherRules)
@@ -533,6 +534,34 @@ Remotes.TradeAction.OnServerEvent:Connect(function(player: Player, msg: any)
 	elseif act == "cancel" then
 		Trade.cancel(player)
 	end
+end)
+
+-- ---- BuySeed (RemoteEvent, client -> server) ------------------------------------
+-- VALIDATES: types; seed exists + is UNLOCKED for this player; qty in 1..SEED_BUY_LIMIT; affordable.
+-- Charges qty*cost and adds the seeds to stock. Planting later spends the stock (see Farm.plant).
+local SEED_BUY_LIMIT = 25
+Remotes.BuySeed.OnServerEvent:Connect(function(player: Player, seedId: any, qty: any)
+	if type(seedId) ~= "string" or type(qty) ~= "number" then
+		return
+	end
+	local state = PlayerData.get(player)
+	if not state then
+		return
+	end
+	qty = math.clamp(math.floor(qty), 1, SEED_BUY_LIMIT)
+	local plant = Plants.get(seedId)
+	if not plant or not Plants.isUnlocked(plant, state, ownedPlotsFor(player)) then
+		return
+	end
+	local cost = plant.cost * qty
+	if state.coins < cost then
+		Remotes.Notify:FireClient(player, "Not enough coins for " .. qty .. " " .. seedId .. " seeds.")
+		return
+	end
+	state.coins -= cost
+	state.seeds[seedId] = (state.seeds[seedId] or 0) + qty
+	Remotes.Notify:FireClient(player, "🌱 Bought " .. qty .. " " .. seedId .. " seeds! (-" .. cost .. "c)")
+	pushState(player)
 end)
 
 -- ---- ProximityPrompt interactions (the 3D world's intents) ----------------------

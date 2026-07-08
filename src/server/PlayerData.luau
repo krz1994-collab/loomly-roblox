@@ -75,6 +75,7 @@ export type PlayerState = {
 	weeklyEarned: number,
 	dayStamp: number,
 	weekStamp: number,
+	seeds: { [string]: number }, -- bought seed stock
 }
 
 local PlayerData = {}
@@ -116,6 +117,7 @@ local function makeDefault(): PlayerState
 		weeklyEarned = 0,
 		dayStamp = 0,
 		weekStamp = 0,
+		seeds = {},
 	}
 end
 

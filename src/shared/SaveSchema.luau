@@ -45,6 +45,7 @@ export type PlayerState = {
 	weeklyEarned: number, -- coins earned this week (leaderboard; resets weekly)
 	dayStamp: number, -- floor(os.time()/86400) of the current daily window
 	weekStamp: number, -- floor(os.time()/604800) of the current weekly window
+	seeds: { [string]: number }, -- seed stock bought from the shop (seedId -> count)
 }
 
 local SaveSchema = {}
@@ -105,6 +106,7 @@ function SaveSchema.serialize(state: PlayerState): any
 		weeklyEarned = state.weeklyEarned,
 		dayStamp = state.dayStamp,
 		weekStamp = state.weekStamp,
+		seeds = deepCopy(state.seeds),
 	}
 end
 
@@ -295,6 +297,14 @@ function SaveSchema.validate(candidate: any, template: PlayerState): PlayerState
 	out.weeklyEarned = isNonNegNumber(t.weeklyEarned) and t.weeklyEarned or 0
 	out.dayStamp = isNonNegNumber(t.dayStamp) and math.floor(t.dayStamp) or 0
 	out.weekStamp = isNonNegNumber(t.weekStamp) and math.floor(t.weekStamp) or 0
+	out.seeds = {}
+	if type(t.seeds) == "table" then
+		for k, v in t.seeds do
+			if type(k) == "string" and isNonNegNumber(v) and v > 0 then
+				out.seeds[k] = math.floor(v)
+			end
+		end
+	end
 
 	-- codex: map of string->true
 	out.codex = {}

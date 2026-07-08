@@ -250,7 +250,7 @@ local function tmpl(): any
 	for _ = 1, 6 do
 		table.insert(plots, { seedId = nil, readyAt = nil })
 	end
-	return { coins = 20, lifetimeEarned = 0, harvests = 0, xp = 0, codex = {}, inventory = {}, plots = plots, rebirths = 0, daily = { day = 0, streak = 0 }, quests = { done = {}, active = {} }, unlocks = {}, upgrades = {}, treasuresFound = {}, orchard = {}, animals = {}, kitchen = { recipeId = nil, doneAt = nil }, bees = { level = 0, lastCollect = 0 }, house = { tier = 0, lastRent = 0, decor = {} }, achievements = {}, museum = {}, tutorialsSeen = {}, pets = { owned = {}, equipped = nil }, challenges = { day = 0, prog = {}, claimed = {} }, dailyEarned = 0, weeklyEarned = 0, dayStamp = 0, weekStamp = 0 }
+	return { coins = 20, lifetimeEarned = 0, harvests = 0, xp = 0, codex = {}, inventory = {}, plots = plots, rebirths = 0, daily = { day = 0, streak = 0 }, quests = { done = {}, active = {} }, unlocks = {}, upgrades = {}, treasuresFound = {}, orchard = {}, animals = {}, kitchen = { recipeId = nil, doneAt = nil }, bees = { level = 0, lastCollect = 0 }, house = { tier = 0, lastRent = 0, decor = {} }, achievements = {}, museum = {}, tutorialsSeen = {}, pets = { owned = {}, equipped = nil }, challenges = { day = 0, prog = {}, claimed = {} }, dailyEarned = 0, weeklyEarned = 0, dayStamp = 0, weekStamp = 0, seeds = {} }
 end
 do
 	local st: any = {
@@ -277,6 +277,7 @@ do
 		pets = { owned = { chick = true, dragon = true }, equipped = "dragon" },
 		challenges = { day = 19600, prog = { harvest = 5 }, claimed = { c_sell = true } },
 		dailyEarned = 120, weeklyEarned = 800, dayStamp = 19600, weekStamp = 2800,
+		seeds = { radish = 5, pumpkin = 2 },
 		plots = {
 			{ seedId = "radish", readyAt = 1700000000 },
 			{ seedId = nil, readyAt = nil },

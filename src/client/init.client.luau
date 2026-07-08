@@ -306,6 +306,8 @@ local function buildSeeds(view: any)
 end
 
 local lastInventory: { any } = {} -- most recent inventory snapshot (for the trade offer picker)
+local lastSeeds: { any } = {} -- most recent seed list (for the seed shop)
+local afterRender: (() -> ())? = nil -- optional hook: refresh whichever panel is open on each state push
 local lastSection: number? = nil -- the player's own plot section (for the "your farm" map dot)
 
 -- ---- juice: floating popups + level-up flash ----
@@ -362,6 +364,7 @@ local function render(view: any)
 
 	hideLoading() -- first authoritative state arrived -> reveal the world
 	lastInventory = view.inventory or {}
+	lastSeeds = view.seeds or lastSeeds
 	lastSection = view.section or lastSection
 
 	-- juice: pop floating rewards + a level-up flash when the numbers jump up
@@ -402,12 +405,12 @@ local function render(view: any)
 			if not s.unlocked then
 				btn.BackgroundColor3 = COL_LOCKED
 				btn.Text = s.emoji .. " " .. s.id .. "\nLOCKED"
-			elseif not s.affordable then
-				btn.BackgroundColor3 = COL_POOR
-				btn.Text = s.emoji .. " " .. s.id .. "\nneed " .. s.cost .. "c"
 			else
+				-- the bar is a SELECTOR now: shows your bought stock (buy more at the 🌱 Seed Shop),
+				-- or the per-plant coin cost if you have none in stock.
 				btn.BackgroundColor3 = if view.selectedSeed == s.id then COL_SELECTED else COL_NORMAL
-				btn.Text = s.emoji .. " " .. s.id .. "\nbuy " .. s.cost .. "c"
+				local line = (s.owned and s.owned > 0) and ("x" .. s.owned .. " owned") or ("plant " .. s.cost .. "c")
+				btn.Text = s.emoji .. " " .. s.id .. "\n" .. line
 			end
 		end
 	end
@@ -440,6 +443,7 @@ local function render(view: any)
 	else
 		questPanel.Text = "📜 Quests: talk to 🌳 Elder Willow to start!"
 	end
+	if afterRender then afterRender() end -- live-refresh any open panel (bag / seed shop)
 end
 
 Remotes.StateUpdate.OnClientEvent:Connect(render)
@@ -1051,6 +1055,94 @@ for _, prod in Premium.list do
 end
 
 shopBtn.Activated:Connect(function() shopPanel.Visible = not shopPanel.Visible end)
+
+-- ================= SEED SHOP (block E) =================
+local seedsBtn = mkBtn(gui, "🌱 Seeds", 84, Color3.fromRGB(90, 160, 80))
+seedsBtn.Position = UDim2.new(1, -104, 0, 344)
+
+local seedShop = Instance.new("Frame")
+seedShop.Size = UDim2.new(0, 420, 0, 460)
+seedShop.Position = UDim2.new(0.5, -210, 0.5, -230)
+seedShop.BackgroundColor3 = Color3.fromRGB(28, 38, 26)
+seedShop.BorderSizePixel = 0
+seedShop.Visible = false
+seedShop.ZIndex = 20
+seedShop.Parent = gui
+do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 10); c.Parent = seedShop end
+local seedTitle = Instance.new("TextLabel")
+seedTitle.Size = UDim2.new(1, 0, 0, 44)
+seedTitle.BackgroundTransparency = 1
+seedTitle.TextColor3 = Color3.fromRGB(225, 245, 215)
+seedTitle.Font = Enum.Font.GothamBold
+seedTitle.TextSize = 15
+seedTitle.Text = "🌱 Seed Shop\nbuy seeds into stock, then plant them for free"
+seedTitle.ZIndex = 21
+seedTitle.Parent = seedShop
+local seedScroll = Instance.new("ScrollingFrame")
+seedScroll.Size = UDim2.new(1, -16, 1, -90)
+seedScroll.Position = UDim2.new(0, 8, 0, 48)
+seedScroll.BackgroundTransparency = 1
+seedScroll.BorderSizePixel = 0
+seedScroll.ScrollBarThickness = 6
+seedScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+seedScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+seedScroll.ZIndex = 21
+seedScroll.Parent = seedShop
+local sesl = Instance.new("UIListLayout"); sesl.Padding = UDim.new(0, 5); sesl.Parent = seedScroll
+local seedClose = mkBtn(seedShop, "Close", 200, Color3.fromRGB(80, 110, 70))
+seedClose.Position = UDim2.new(0.5, -100, 1, -36)
+seedClose.Size = UDim2.new(0, 200, 0, 30)
+seedClose.ZIndex = 22
+seedClose.Activated:Connect(function() seedShop.Visible = false end)
+
+local function refreshSeedShop()
+	for _, ch in seedScroll:GetChildren() do
+		if ch:IsA("Frame") then ch:Destroy() end
+	end
+	for _, s in lastSeeds do
+		if s.unlocked then
+			local row = Instance.new("Frame")
+			row.Size = UDim2.new(1, -6, 0, 40)
+			row.BackgroundColor3 = Color3.fromRGB(40, 52, 38)
+			row.BorderSizePixel = 0
+			row.ZIndex = 22
+			row.Parent = seedScroll
+			do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 6); c.Parent = row end
+			local info = Instance.new("TextLabel")
+			info.Size = UDim2.new(0.5, 0, 1, 0)
+			info.Position = UDim2.new(0, 8, 0, 0)
+			info.BackgroundTransparency = 1
+			info.TextColor3 = Color3.fromRGB(230, 240, 225)
+			info.Font = Enum.Font.GothamMedium
+			info.TextSize = 13
+			info.TextXAlignment = Enum.TextXAlignment.Left
+			info.Text = string.format("%s %s  %dc  ·  x%d", s.emoji or "", s.id, s.cost, s.owned or 0)
+			info.ZIndex = 23
+			info.Parent = row
+			for i, n in { 1, 5, 10 } do
+				local b = mkBtn(row, "+" .. n, 44, Color3.fromRGB(110, 175, 95))
+				b.Position = UDim2.new(0.5, 6 + (i - 1) * 50, 0.5, -13)
+				b.Size = UDim2.new(0, 44, 0, 26)
+				b.ZIndex = 23
+				local seedId, qty = s.id, n
+				b.Activated:Connect(function()
+					Remotes.BuySeed:FireServer(seedId, qty)
+				end)
+			end
+		end
+	end
+end
+
+seedsBtn.Activated:Connect(function()
+	seedShop.Visible = not seedShop.Visible
+	if seedShop.Visible then refreshSeedShop() end
+end)
+
+-- keep an open bag / seed shop live as state pushes arrive
+afterRender = function()
+	if seedShop.Visible then refreshSeedShop() end
+	if bagPanel.Visible then refreshBag() end
+end
 
 local ok, view = pcall(function()
 	return Remotes.GetState:InvokeServer()
