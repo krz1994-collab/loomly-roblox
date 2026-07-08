@@ -11,6 +11,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ProximityPromptService = game:GetService("ProximityPromptService")
+local MarketplaceService = game:GetService("MarketplaceService")
 
 local Remotes = require(ReplicatedStorage.Bloomly.Remotes)
 local Config = require(ReplicatedStorage.Bloomly.data.Config)
@@ -328,9 +329,64 @@ local function handleCommand(player: Player, text: string)
 	end
 end
 
+-- ---- monetization (block C): Robux products/gamepasses -> perks (strictly no P2W) --------------
+-- Perks are stored as unlocks["perk_<id>"]. Real product/gamepass ids live in data/Premium.luau
+-- (robuxId); until you fill them (create them on create.roblox.com), nothing here can be purchased.
+local premiumByRobux: { [number]: any } = {}
+for _, p in Premium.list do
+	if p.robuxId ~= 0 then
+		premiumByRobux[p.robuxId] = p
+	end
+end
+
+local function grantPerk(player: Player, product: any): boolean
+	local state = PlayerData.get(player)
+	if not state then
+		return false
+	end
+	state.unlocks["perk_" .. product.id] = true
+	Remotes.Notify:FireClient(player, "✨ Unlocked: " .. product.name .. "!")
+	pushState(player)
+	return true
+end
+
+-- consumable dev-products
+MarketplaceService.ProcessReceipt = function(receipt)
+	local product = premiumByRobux[receipt.ProductId]
+	local player = Players:GetPlayerByUserId(receipt.PlayerId)
+	if product and player and grantPerk(player, product) then
+		return Enum.ProductPurchaseDecision.PurchaseGranted
+	end
+	return Enum.ProductPurchaseDecision.NotProcessedYet -- try again later (don't lose the Robux)
+end
+
+-- gamepasses: grant on purchase, and on join if already owned
+MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player: Player, passId: number, purchased: boolean)
+	if purchased and premiumByRobux[passId] then
+		grantPerk(player, premiumByRobux[passId])
+	end
+end)
+
+local function grantOwnedGamepasses(player: Player)
+	for _, p in Premium.list do
+		if p.kind == "gamepass" and p.robuxId ~= 0 then
+			local ok, owns = pcall(function()
+				return MarketplaceService:UserOwnsGamePassAsync(player.UserId, p.robuxId)
+			end)
+			if ok and owns then
+				local state = PlayerData.get(player)
+				if state then
+					state.unlocks["perk_" .. p.id] = true
+				end
+			end
+		end
+	end
+end
+
 -- ---- lifecycle ------------------------------------------------------------------
 local function onPlayerAdded(player: Player)
 	local state = PlayerData.load(player) -- loads authoritative state (DataStore in load())
+	task.spawn(grantOwnedGamepasses, player) -- restore any gamepass perks they already own
 	PlotClaim.claim(player) -- assign a free 300x300 plot for this session
 	setupLeaderstats(player, state) -- Coins + Level on the player list
 	selectedSeed[player.UserId] = "radish" -- sensible default so the first Plant prompt just works

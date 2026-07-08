@@ -17,6 +17,8 @@ local WorldLayout = require(ReplicatedStorage.Bloomly.data.WorldLayout)
 local Tutorials = require(ReplicatedStorage.Bloomly.data.Tutorials)
 local Sounds = require(ReplicatedStorage.Bloomly.data.Sounds)
 local Plants = require(ReplicatedStorage.Bloomly.data.Plants)
+local Premium = require(ReplicatedStorage.Bloomly.data.Premium)
+local MarketplaceService = game:GetService("MarketplaceService")
 
 -- ---- sound: one cached Sound per key, played on demand. Empty ids are silent (safe). ----
 local SoundService = game:GetService("SoundService")
@@ -967,6 +969,88 @@ codexBtn.Activated:Connect(function()
 	codexPanel.Visible = not codexPanel.Visible
 	if codexPanel.Visible then refreshCodex() end
 end)
+
+-- ================= SHOP (block C, monetization) =================
+local shopBtn = mkBtn(gui, "✨ Shop", 84, Color3.fromRGB(210, 130, 210))
+shopBtn.Position = UDim2.new(1, -104, 0, 128)
+
+local shopPanel = Instance.new("Frame")
+shopPanel.Size = UDim2.new(0, 460, 0, 470)
+shopPanel.Position = UDim2.new(0.5, -230, 0.5, -235)
+shopPanel.BackgroundColor3 = Color3.fromRGB(40, 30, 44)
+shopPanel.BorderSizePixel = 0
+shopPanel.Visible = false
+shopPanel.ZIndex = 20
+shopPanel.Parent = gui
+do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 10); c.Parent = shopPanel end
+local shopTitle = Instance.new("TextLabel")
+shopTitle.Size = UDim2.new(1, 0, 0, 44)
+shopTitle.BackgroundTransparency = 1
+shopTitle.TextColor3 = Color3.fromRGB(245, 230, 250)
+shopTitle.Font = Enum.Font.GothamBold
+shopTitle.TextSize = 15
+shopTitle.Text = "✨ Shop\ncosmetic + convenience only, never pay-to-win"
+shopTitle.ZIndex = 21
+shopTitle.Parent = shopPanel
+local shopScroll = Instance.new("ScrollingFrame")
+shopScroll.Size = UDim2.new(1, -16, 1, -90)
+shopScroll.Position = UDim2.new(0, 8, 0, 48)
+shopScroll.BackgroundTransparency = 1
+shopScroll.BorderSizePixel = 0
+shopScroll.ScrollBarThickness = 6
+shopScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+shopScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+shopScroll.ZIndex = 21
+shopScroll.Parent = shopPanel
+local ssl = Instance.new("UIListLayout"); ssl.Padding = UDim.new(0, 6); ssl.Parent = shopScroll
+local shopClose = mkBtn(shopPanel, "Close", 200, Color3.fromRGB(120, 90, 120))
+shopClose.Position = UDim2.new(0.5, -100, 1, -36)
+shopClose.Size = UDim2.new(0, 200, 0, 30)
+shopClose.ZIndex = 22
+shopClose.Activated:Connect(function() shopPanel.Visible = false end)
+
+for _, prod in Premium.list do
+	local row = Instance.new("Frame")
+	row.Size = UDim2.new(1, -6, 0, 62)
+	row.BackgroundColor3 = Color3.fromRGB(54, 42, 58)
+	row.BorderSizePixel = 0
+	row.ZIndex = 22
+	row.Parent = shopScroll
+	do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 6); c.Parent = row end
+	local info = Instance.new("TextLabel")
+	info.Size = UDim2.new(1, -110, 1, -6)
+	info.Position = UDim2.new(0, 8, 0, 3)
+	info.BackgroundTransparency = 1
+	info.TextColor3 = Color3.fromRGB(240, 235, 245)
+	info.Font = Enum.Font.GothamMedium
+	info.TextSize = 13
+	info.TextXAlignment = Enum.TextXAlignment.Left
+	info.TextYAlignment = Enum.TextYAlignment.Top
+	info.TextWrapped = true
+	info.Text = prod.emoji .. " " .. prod.name .. "  (" .. prod.price .. " R$)\n" .. prod.desc
+	info.ZIndex = 23
+	info.Parent = row
+	local buy = mkBtn(row, prod.robuxId == 0 and "Soon" or "Buy", 92, prod.robuxId == 0 and Color3.fromRGB(90, 80, 95) or Color3.fromRGB(120, 190, 100))
+	buy.Position = UDim2.new(1, -100, 0.5, -15)
+	buy.ZIndex = 23
+	buy.Activated:Connect(function()
+		if prod.robuxId == 0 then
+			return -- product id not configured yet
+		end
+		local okp = pcall(function()
+			if prod.kind == "gamepass" then
+				MarketplaceService:PromptGamePassPurchase(player, prod.robuxId)
+			else
+				MarketplaceService:PromptProductPurchase(player, prod.robuxId)
+			end
+		end)
+		if not okp then
+			warn("purchase prompt failed for " .. prod.id)
+		end
+	end)
+end
+
+shopBtn.Activated:Connect(function() shopPanel.Visible = not shopPanel.Visible end)
 
 local ok, view = pcall(function()
 	return Remotes.GetState:InvokeServer()
