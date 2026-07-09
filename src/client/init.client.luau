@@ -56,6 +56,12 @@ gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
 gui.Parent = playerGui
 
+-- Declutter: hide Roblox's default top-right player list (People / Coins / Level). Our HUD already shows
+-- coins + level, and the in-game leaderboards cover competition, so that window is just noise.
+pcall(function()
+	game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
+end)
+
 -- ---- loading screen (polish) : covers the screen until the first authoritative state arrives ----
 local loading = Instance.new("Frame")
 loading.Size = UDim2.fromScale(1, 1)
@@ -204,8 +210,8 @@ end)
 
 -- ---- quest tracker (top-right) ----
 local questPanel = Instance.new("TextLabel")
-questPanel.Size = UDim2.new(0, 300, 0, 150)
-questPanel.Position = UDim2.new(1, -312, 0, 44)
+questPanel.Size = UDim2.new(0, 270, 0, 120)
+questPanel.Position = UDim2.new(0, 12, 0, 92) -- top-left, under the HUD (off the top-right player list)
 questPanel.BackgroundColor3 = Color3.fromRGB(24, 30, 22)
 questPanel.BackgroundTransparency = 0.3
 questPanel.BorderSizePixel = 0
@@ -280,6 +286,7 @@ seedBar.ScrollBarThickness = 6
 seedBar.CanvasSize = UDim2.new(0, 0, 0, 0)
 seedBar.AutomaticCanvasSize = Enum.AutomaticSize.X
 seedBar.Parent = gui
+seedBar.Visible = false -- HIDDEN until you walk up to a plot pad (see the ProximityPrompt hook below)
 do local sc = Instance.new("UISizeConstraint"); sc.MaxSize = Vector2.new(760, 66); sc.Parent = seedBar end -- cap on desktop
 local barLayout = Instance.new("UIListLayout")
 barLayout.FillDirection = Enum.FillDirection.Horizontal
@@ -288,6 +295,28 @@ barLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 barLayout.Padding = UDim.new(0, 6)
 barLayout.SortOrder = Enum.SortOrder.LayoutOrder
 barLayout.Parent = seedBar
+
+-- Show the seed hotbar ONLY while you're at a plot pad (a Plant/Harvest prompt is in range), so it does
+-- not sit on screen the rest of the time. Counts shown plot prompts so moving between the 12 pads of a
+-- plot never flickers it off.
+do
+	local pps = game:GetService("ProximityPromptService")
+	local nearPlots = 0
+	pps.PromptShown:Connect(function(prompt: ProximityPrompt)
+		if prompt:GetAttribute("kind") == "plot" then
+			nearPlots += 1
+			seedBar.Visible = true
+		end
+	end)
+	pps.PromptHidden:Connect(function(prompt: ProximityPrompt)
+		if prompt:GetAttribute("kind") == "plot" then
+			nearPlots = math.max(0, nearPlots - 1)
+			if nearPlots == 0 then
+				seedBar.Visible = false
+			end
+		end
+	end)
+end
 
 local COL_NORMAL = Color3.fromRGB(70, 110, 60)
 local COL_SELECTED = Color3.fromRGB(120, 190, 90)
@@ -769,14 +798,11 @@ end
 
 local miniMap, miniYou, miniFarm = buildMap(150, false)
 miniMap.Parent = gui
-miniMap.Active = false -- never intercept touches (so it can't block the movement thumbstick)
-if isTouchDevice then
-	-- on phones the bottom-left is the movement thumbstick + it's cramped: hide the always-on minimap
-	-- (the full map is one tap away on the 🗺️ Map button) so you can actually walk + the HUD is cleaner
-	miniMap.Visible = false
-else
-	miniMap.Position = UDim2.new(0, 12, 1, -162) -- desktop: bottom-left corner (no thumbstick there)
-end
+miniMap.Active = false
+-- HIDDEN by default on every device (it cluttered the screen + blocked the phone thumbstick). The full
+-- map is one tap away on the 🗺️ Map button. Kept in the tree so the "you" dot still updates if shown.
+miniMap.Position = UDim2.new(0, 12, 1, -162)
+miniMap.Visible = false
 
 local fullMap, fullYou, fullFarm = buildMap(420, true)
 fullMap.Position = UDim2.new(0.5, -210, 0.5, -210)
@@ -1327,9 +1353,9 @@ end
 do
 	local menuButtons = { shopBtn, bagBtn, tradeBtn, mapBtn, helpBtn, codexBtn, seedsBtn }
 	local menuBtn = mkBtn(gui, "☰ Menu", 90, Color3.fromRGB(60, 70, 90))
-	menuBtn.Position = UDim2.new(1, -104, 0, 92)
+	menuBtn.Position = UDim2.new(1, -104, 0, 126) -- below the Roblox player list so they don't stack
 	menuBtn.ZIndex = 15
-	local open = not isTouchDevice -- desktop: open by default; phone: collapsed until tapped
+	local open = false -- collapsed by DEFAULT on every device -> clean screen, tap ☰ to reveal the buttons
 	local function refresh()
 		for _, b in menuButtons do
 			if b then
